@@ -14,10 +14,6 @@ app = FastAPI(title="SignTrustMap AI Processing Service")
 
 app.include_router(router)
 
-@app.get("/")
-def read_root():
-    return {"message": "SignTrustMap AI Processing Service is online"}
-
 if __name__ == "__main__":
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", "8000"))

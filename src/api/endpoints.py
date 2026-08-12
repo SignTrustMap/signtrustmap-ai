@@ -144,7 +144,7 @@ async def process_video(
         "message": "Video accepted. Processing started."
     }
 
-@router.get("/api/health")
+@router.get("/")
 async def health_check():
     logger.info("Executing API dependency health check.")
     
