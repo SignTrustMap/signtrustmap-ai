@@ -1,25 +1,31 @@
 import subprocess
+import shutil
 import boto3
 from src.core.config import settings
 
 def check_exiftool():
+    if not shutil.which("exiftool"):
+        return {"status": "unhealthy", "version": None, "error": "exiftool is not installed"}
     try:
-        res = subprocess.run(["exiftool", "-ver"], capture_output=True, text=True, timeout=2)
+        res = subprocess.run(["exiftool", "-ver"], capture_output=True, text=True, timeout=settings.HEALTH_CHECK_TIMEOUT)
         if res.returncode == 0:
             return {"status": "healthy", "version": res.stdout.strip(), "error": None}
+        return {"status": "unhealthy", "version": None, "error": f"Exit code {res.returncode}"}
     except Exception as e:
         return {"status": "unhealthy", "version": None, "error": str(e)}
-    return {"status": "unhealthy", "version": None, "error": "Unknown error"}
 
 def check_ffprobe():
+    if not shutil.which("ffprobe"):
+        return {"status": "unhealthy", "version": None, "error": "ffprobe is not installed"}
     try:
-        res = subprocess.run(["ffprobe", "-version"], capture_output=True, text=True, timeout=2)
+        res = subprocess.run(["ffprobe", "-version"], capture_output=True, text=True, timeout=settings.HEALTH_CHECK_TIMEOUT)
         if res.returncode == 0:
             version_line = res.stdout.splitlines()[0]
             return {"status": "healthy", "version": version_line, "error": None}
+        return {"status": "unhealthy", "version": None, "error": f"Exit code {res.returncode}"}
     except Exception as e:
         return {"status": "unhealthy", "version": None, "error": str(e)}
-    return {"status": "unhealthy", "version": None, "error": "Unknown error"}
+
 
 def check_minio():
     endpoint = settings.MINIO_ENDPOINT
@@ -39,3 +45,4 @@ def check_minio():
         return {"status": "healthy", "error": None}
     except Exception as e:
         return {"status": "unhealthy", "error": str(e)}
+

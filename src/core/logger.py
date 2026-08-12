@@ -42,7 +42,7 @@ def setup_logger():
             log_file_path,
             level="DEBUG",
             serialize=True,
-            rotation="50 MB",
+            rotation="1 MB",
             compression="zip",
             retention="10 days"
         )
@@ -52,7 +52,7 @@ def setup_logger():
             log_file_path,
             level="DEBUG",
             format=file_format,
-            rotation="50 MB",
+            rotation="1 MB",
             compression="zip",
             retention="10 days"
         )
@@ -65,3 +65,7 @@ def setup_logger():
         logging_logger = logging.getLogger(logger_name)
         logging_logger.handlers = [InterceptHandler()]
         logging_logger.propagate = False
+
+    for logger_name in ("matplotlib", "PIL", "urllib3", "boto3", "botocore", "watchfiles"):
+        logging.getLogger(logger_name).setLevel(logging.WARNING)
+
