@@ -109,3 +109,7 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+weights/
+data/
+.agents/

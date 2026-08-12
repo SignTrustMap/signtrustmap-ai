@@ -5,6 +5,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1 \
     libglib2.0-0 \
     libgomp1 \
+    libimage-exiftool-perl \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
@@ -18,7 +20,8 @@ COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-install-project
 
-COPY . .
+COPY src/ ./src/
+COPY main.py ./
 
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen
