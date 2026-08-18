@@ -113,3 +113,8 @@ Thumbs.db
 weights/
 data/
 .agents/
+kaggle_upload/
+
+.syk4y-temp/
+
+runs
