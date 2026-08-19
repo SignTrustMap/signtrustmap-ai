@@ -13,6 +13,7 @@ GREY     = "#8b949e"
 DIM      = "#161b22"
 config.media_dir = "outputs"
 config.background_color = BG_COLOR
+config.max_files_cached = 1000
 
 
 class SignGPSExplainer(Scene):
@@ -28,18 +29,21 @@ class SignGPSExplainer(Scene):
         road = Rectangle(width=12, height=1.6, fill_color=ROAD, fill_opacity=0.9, stroke_width=0).shift(DOWN * 1.5)
         lane = DashedLine(LEFT * 6 + DOWN * 1.5, RIGHT * 6 + DOWN * 1.5, color=GREY, stroke_width=2, dash_length=0.35)
 
-        veh_body = RoundedRectangle(corner_radius=0.1, width=1.1, height=0.55, fill_color=CAM, fill_opacity=0.85, stroke_color=WHITE_C, stroke_width=1.5).shift(LEFT * 4.2 + DOWN * 1.5)
+        veh_body = RoundedRectangle(corner_radius=0.1, width=1.1, height=0.55, fill_color=CAM, fill_opacity=0.85, stroke_color=WHITE_C, stroke_width=1.5).shift(LEFT * 4.2 + DOWN * 1.85)
         cam_lens = Dot(veh_body.get_right(), color=RAY, radius=0.07)
         veh = VGroup(veh_body, cam_lens)
         veh_lbl = MathTex(r"\text{Vehicle } (\mathbf{c}_i, \psi_i)", font_size=18, color=CAM).next_to(veh, DOWN, buff=0.12)
 
-        sign_post = Line(DOWN * 1.5, UP * 0.9, color=GREY, stroke_width=3).shift(RIGHT * 3.2)
+        sign_post = Line(DOWN * 2.3, UP * 1.3, color=GREY, stroke_width=3).shift(RIGHT * 4.2)
         sign_board = RegularPolygon(n=8, radius=0.36, fill_color=SIGN, fill_opacity=0.9, stroke_color=WHITE_C, stroke_width=1.5).move_to(sign_post.get_top())
         sign_txt = Text("STOP", font_size=9, weight=BOLD, color=WHITE_C).move_to(sign_board)
         sign_obj = VGroup(sign_post, sign_board, sign_txt)
         sign_lbl = MathTex(r"\mathbf{s}^* = (\phi_s, \lambda_s) \ ?", font_size=20, color=SIGN).next_to(sign_board, UP, buff=0.15)
 
-        photo_frame = RoundedRectangle(corner_radius=0.08, width=3.2, height=2.0, fill_color="#0e131f", fill_opacity=0.95, stroke_color=GREY, stroke_width=1.5).move_to(UP * 1.3)
+        sight_ray_1 = Arrow(cam_lens.get_center(), sign_board.get_left(), color=RAY, stroke_width=2.5, buff=0.08, tip_length=0.18)
+        sight_ray_lbl_1 = MathTex(r"\text{Sight Ray}", font_size=16, color=RAY).next_to(sight_ray_1.get_center(), UP, buff=0.1).shift(LEFT * 0.4)
+
+        photo_frame = RoundedRectangle(corner_radius=0.08, width=3.2, height=2.0, fill_color="#0e131f", fill_opacity=0.95, stroke_color=GREY, stroke_width=1.5).move_to(LEFT * 2.5 + UP * 1.3)
         photo_title = MathTex(r"\text{Camera View } \mathbf{I}_i", font_size=17, color=GREY).next_to(photo_frame, UP, buff=0.08)
         
         pt_A_photo = photo_frame.get_center()
@@ -61,6 +65,7 @@ class SignGPSExplainer(Scene):
         self.play(FadeIn(road), Create(lane))
         self.play(FadeIn(veh), Write(veh_lbl))
         self.play(FadeIn(sign_obj), Write(sign_lbl))
+        self.play(GrowArrow(sight_ray_1), Write(sight_ray_lbl_1))
         self.play(FadeIn(photo_group, shift=DOWN * 0.2))
         self.play(FadeIn(problem_formula, shift=UP * 0.15))
         self.wait(1.5)
@@ -129,20 +134,20 @@ class SignGPSExplainer(Scene):
         self.play(
             Transform(title, title_pinhole),
             Transform(problem_formula, formula_pinhole),
-            FadeOut(VGroup(road, lane, veh, veh_lbl, sign_obj, sign_lbl, photo_group), run_time=0.6),
-            Create(opt_axis, run_time=0.6),
-            Write(opt_axis_tag, run_time=0.6),
-            Create(image_plane, run_time=0.6),
-            Write(image_plane_tag, run_time=0.6),
-            FadeIn(dot_C1), Write(lbl_C1),
-            FadeIn(dot_A), Write(lbl_A),
-            Create(line_CA), Create(sq_right),
-            Create(arrow_f), Write(lbl_f),
-            FadeIn(dot_B), Write(lbl_B),
-            Create(line_AB), Create(arrow_dx), Write(lbl_dx),
-            GrowArrow(ray_arrow), Write(ray_lbl),
-            Create(arc_dth), Write(lbl_dth),
+            FadeOut(VGroup(road, lane, veh, veh_lbl, sign_obj, sign_lbl, photo_group)),
+            ReplacementTransform(sight_ray_1, ray_arrow),
+            ReplacementTransform(sight_ray_lbl_1, ray_lbl),
+            FadeIn(dot_C1),
+            Write(lbl_C1),
+            run_time=0.7
         )
+        self.play(Create(opt_axis), Write(opt_axis_tag), run_time=0.6)
+        self.play(Create(image_plane), Write(image_plane_tag), run_time=0.6)
+        self.play(FadeIn(dot_A), Write(lbl_A), Create(line_CA), Create(sq_right), run_time=0.6)
+        self.play(Create(arrow_f), Write(lbl_f), run_time=0.5)
+        self.play(FadeIn(dot_B), Write(lbl_B), Create(line_AB), run_time=0.6)
+        self.play(Create(arrow_dx), Write(lbl_dx), run_time=0.5)
+        self.play(Create(arc_dth), Write(lbl_dth), run_time=0.6)
         self.wait(1.5)
 
         title_global = MathTex(
@@ -181,14 +186,14 @@ class SignGPSExplainer(Scene):
             Transform(title, title_global),
             Transform(problem_formula, formula_ray),
             Transform(lbl_C1, lbl_c1_gps),
-            FadeOut(internal_items, run_time=0.6),
-            Create(north_ref1, run_time=0.6),
-            Write(north_lbl1, run_time=0.6),
-            Transform(ray_arrow, ray1_arrow_full, run_time=0.8),
-            Write(ray1_lbl_full, run_time=0.8),
-            Create(total_arc1, run_time=0.8),
-            Write(th_tex1, run_time=0.8),
+            FadeOut(internal_items),
+            Create(north_ref1),
+            Write(north_lbl1),
+            Transform(ray_arrow, ray1_arrow_full),
+            Write(ray1_lbl_full),
+            run_time=0.8
         )
+        self.play(Create(total_arc1), Write(th_tex1), run_time=0.6)
         self.play(FadeIn(slide_dot), FadeIn(slide_lbl))
         self.play(d_tracker.animate.set_value(5.4), run_time=1.0, rate_func=smooth)
         self.play(d_tracker.animate.set_value(2.2), run_time=0.8, rate_func=smooth)
@@ -249,13 +254,15 @@ class SignGPSExplainer(Scene):
             Create(road_path, run_time=0.5),
         )
 
-        self.play(FadeIn(dot_C2), Write(lbl_C2), Create(north_ref2), Create(arc2), Write(th_tex2))
-        self.play(GrowArrow(ray2_arrow, run_time=0.8), Write(ray2_lbl))
-        self.play(FadeIn(dot_S_star, scale=0.5), Create(ring_S_star), Write(lbl_S_star))
-        self.wait(0.8)
+        self.play(FadeIn(dot_C2), Write(lbl_C2), Create(north_ref2), run_time=0.6)
+        self.play(GrowArrow(ray2_arrow), Write(ray2_lbl), run_time=0.6)
+        self.play(Create(arc2), Write(th_tex2), run_time=0.5)
 
-        self.play(FadeIn(dot_C3), Write(lbl_C3), Create(north_ref3), Create(arc3), Write(th_tex3))
-        self.play(GrowArrow(ray3_arrow, run_time=0.8), Write(ray3_lbl))
+        self.play(FadeIn(dot_C3), Write(lbl_C3), Create(north_ref3), run_time=0.6)
+        self.play(GrowArrow(ray3_arrow), Write(ray3_lbl), run_time=0.6)
+        self.play(Create(arc3), Write(th_tex3), run_time=0.5)
+
+        self.play(FadeIn(dot_S_star, scale=0.5), Create(ring_S_star), Write(lbl_S_star), run_time=0.8)
         self.play(ring_S_star.animate.scale(1.3).set_stroke(opacity=0.3), run_time=0.6)
         self.wait(1.5)
 
@@ -272,16 +279,21 @@ class SignGPSExplainer(Scene):
         )
 
         mat_eq = MathTex(
-            r"\begin{bmatrix} -\sin\theta_1 & \cos\theta_1 \\ -\sin\theta_2 & \cos\theta_2 \\ -\sin\theta_3 & \cos\theta_3 \end{bmatrix}"
-            r"\begin{bmatrix} x_s \\ y_s \end{bmatrix} = "
-            r"\begin{bmatrix} -\sin\theta_1 x_1 + \cos\theta_1 y_1 \\ -\sin\theta_2 x_2 + \cos\theta_2 y_2 \\ -\sin\theta_3 x_3 + \cos\theta_3 y_3 \end{bmatrix}",
-            font_size=20, color=WHITE_C
-        ).move_to(RIGHT * 3.3 + UP * 0.5)
+            r"\underbrace{\begin{bmatrix} -\sin\theta_1 & \cos\theta_1 \\ -\sin\theta_2 & \cos\theta_2 \\ -\sin\theta_3 & \cos\theta_3 \end{bmatrix}}_{\mathbf{A}\;(N\times 2)}"
+            r"\underbrace{\begin{bmatrix} x_s \\ y_s \end{bmatrix}}_{\mathbf{s}} = "
+            r"\underbrace{\begin{bmatrix} -\sin\theta_1 x_1 + \cos\theta_1 y_1 \\ -\sin\theta_2 x_2 + \cos\theta_2 y_2 \\ -\sin\theta_3 x_3 + \cos\theta_3 y_3 \end{bmatrix}}_{\mathbf{b}}",
+            font_size=19, color=WHITE_C
+        ).move_to(RIGHT * 3.3 + UP * 0.7)
+
+        note_xy = MathTex(
+            r"(x_i,\, y_i) = \text{local-plane coords of camera } \mathbf{c}_i",
+            font_size=17, color=GREY
+        ).next_to(mat_eq, DOWN, buff=0.22)
 
         sol_box = MathTex(
             r"\mathbf{s}^* = (\mathbf{A}^T \mathbf{A})^{-1} \mathbf{A}^T \mathbf{b} = \begin{bmatrix} x_s^* \\ y_s^* \end{bmatrix}",
             font_size=22, color=FORM
-        ).move_to(RIGHT * 3.3 + DOWN * 1.3)
+        ).move_to(RIGHT * 3.3 + DOWN * 1.6)
 
         formula_lsq_bot = MathTex(
             r"\text{Overdetermined System: } N \ge 2 \text{ observations minimize bearing residual } \|\mathbf{A}\mathbf{s} - \mathbf{b}\|^2",
@@ -295,34 +307,8 @@ class SignGPSExplainer(Scene):
             run_time=0.8
         )
         self.play(FadeIn(mat_eq, shift=LEFT * 0.3))
+        self.play(FadeIn(note_xy, shift=UP * 0.1))
         self.play(FadeIn(sol_box, shift=UP * 0.2))
-        self.wait(1.8)
-
-        title_height = MathTex(
-            r"\text{Height Verification } \& \text{ Fallback: } h = \frac{d \cdot \Delta y}{f} \in [0.3\,\text{m},\, 1.2\,\text{m}]",
-            font_size=25, color=WHITE_C
-        ).to_edge(UP, buff=0.45)
-
-        h_side = VGroup(
-            Line(DOWN * 1.5, UP * 1.5, color=GREY, stroke_width=2.5).shift(RIGHT * 1.5),
-            Rectangle(width=0.4, height=1.0, fill_color=SIGN, fill_opacity=0.8, stroke_color=WHITE_C, stroke_width=1.5).move_to(RIGHT * 1.5 + UP * 0.4),
-            DoubleArrow(RIGHT * 2.0 + DOWN * 0.1, RIGHT * 2.0 + UP * 0.9, color=FORM, stroke_width=2, buff=0, tip_length=0.12),
-            MathTex(r"h = 0.75\,\text{m}", font_size=20, color=FORM).next_to(RIGHT * 2.0 + UP * 0.4, RIGHT, buff=0.1),
-            MathTex(r"\checkmark \ \text{Validated } [0.3\,\text{m},\, 1.2\,\text{m}]", font_size=20, color=FORM).move_to(RIGHT * 2.0 + DOWN * 0.8)
-        )
-
-        h_formula_bot = MathTex(
-            r"\text{If single-frame only: fallback to known physical prior } h_0 \approx 0.75\,\text{m} \implies d = \frac{f \cdot h_0}{\Delta y}",
-            font_size=22, color=FORM
-        ).to_edge(DOWN, buff=0.45)
-
-        self.play(
-            Transform(title, title_height),
-            Transform(problem_formula, h_formula_bot),
-            FadeOut(mat_eq), FadeOut(sol_box),
-            FadeIn(h_side, shift=LEFT * 0.2),
-            run_time=0.8
-        )
         self.wait(1.8)
 
         title_geo = MathTex(
@@ -351,9 +337,18 @@ class SignGPSExplainer(Scene):
         self.play(
             Transform(title, title_geo),
             Transform(problem_formula, formula_geo_bot),
-            FadeOut(h_side),
+            FadeOut(mat_eq), FadeOut(sol_box), FadeOut(note_xy),
             FadeIn(geo_eq, shift=UP * 0.2),
             FadeIn(gps_badge, shift=UP * 0.2),
             run_time=0.8
         )
         self.wait(2.5)
+
+
+
+if __name__ == "__main__":
+    import subprocess
+    import sys
+    args = sys.argv[1:] if len(sys.argv) > 1 else ["-pqm"]
+    subprocess.run([sys.executable, "-m", "manim", *args, __file__, "SignGPSExplainer"])
+
