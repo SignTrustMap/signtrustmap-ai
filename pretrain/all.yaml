@@ -6,8 +6,9 @@ train:
 val:
   - DFG/images/val
   - VTSDB100/images/val
-  - VTSDB100/images/test
   - MTSD/images/val
+test:
+  - VTSDB100/images/test
   - MTSD/images/test
 
 names:
