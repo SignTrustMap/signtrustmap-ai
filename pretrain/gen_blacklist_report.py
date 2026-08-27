@@ -580,6 +580,40 @@ function applyFilters() {{
     }});
 }}
 
+function saveToLocalStorage() {{
+    const checkboxes = document.querySelectorAll('.sign-check');
+    const checkedIds = [];
+    checkboxes.forEach(c => {{
+        if (c.checked) {{
+            checkedIds.push(c.getAttribute('data-cid'));
+        }}
+    }});
+    localStorage.setItem('blacklist_{dataset_name}', JSON.stringify(checkedIds));
+}}
+
+function loadFromLocalStorage() {{
+    const saved = localStorage.getItem('blacklist_{dataset_name}');
+    if (saved) {{
+        try {{
+            const checkedIds = new Set(JSON.parse(saved));
+            const checkboxes = document.querySelectorAll('.sign-check');
+            checkboxes.forEach(c => {{
+                const cid = c.getAttribute('data-cid');
+                c.checked = checkedIds.has(cid);
+            }});
+        }} catch (e) {{
+            console.error('Error loading saved state:', e);
+        }}
+    }}
+}}
+
+function resetToDefault() {{
+    if (confirm('Reset selection to default states from all.yaml?')) {{
+        localStorage.removeItem('blacklist_{dataset_name}');
+        location.reload();
+    }}
+}}
+
 function checkAllVisible(state) {{
     const rows = document.querySelectorAll('#sign-table-body tr');
     rows.forEach(r => {{
@@ -613,6 +647,7 @@ function updateStats() {{
     const total = checkboxes.length;
     document.getElementById('stat-blacklisted').innerText = bl;
     document.getElementById('stat-kept').innerText = (total - bl);
+    saveToLocalStorage();
 }}
 
 function getBlacklistLines() {{
@@ -653,6 +688,11 @@ function showToast(msg) {{
     toast.style.display = 'block';
     setTimeout(() => {{ toast.style.display = 'none'; }}, 2500);
 }}
+
+window.addEventListener('DOMContentLoaded', () => {{
+    loadFromLocalStorage();
+    updateStats();
+}});
 </script>
 
 </body>
