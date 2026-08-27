@@ -1,10 +1,10 @@
 import os
-import pretrain.monkeypatch
+import monkeypatch
 import yaml
 from loguru import logger
-from ultralytics import YOLO
 
 os.environ["MPLBACKEND"] = "Agg"
+from ultralytics import YOLO
 
 dataset_yaml_path = "pretrain/all.yaml"
 active_classes = []
@@ -27,11 +27,11 @@ results = model.train(
     classes=active_classes,
     single_cls=True,
     epochs=100,
-    batch=128,
+    batch=512,
     imgsz=640,
     device=[0],
     workers=8,
-    cache=True,
+    cache='disk',
     project="runs/pretrain",
     name="yolo26n",
     optimizer="auto",
@@ -50,7 +50,7 @@ test_results = model.val(
     split="test",
     classes=active_classes,
     single_cls=True,
-    batch=128,
+    batch=512,
     imgsz=640,
     device=[0],
     workers=8,
