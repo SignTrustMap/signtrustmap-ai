@@ -30,10 +30,10 @@ names:
   24: I-34
   25: I-36
   26: I-37
-  27: I-38
-  28: I-39-1
-  29: I-39-2
-  30: I-39-3
+  27: I-38  # blacklist
+  28: I-39-1  # blacklist
+  29: I-39-2  # blacklist
+  30: I-39-3  # blacklist
   31: I-4
   32: I-5
   33: I-5.1
@@ -64,7 +64,7 @@ names:
   58: II-33
   59: II-34
   60: II-35
-  61: II-39
+  61: II-39  # blacklist
   62: II-4
   63: II-40
   64: II-41
@@ -83,85 +83,85 @@ names:
   77: II-6
   78: II-7
   79: II-7.1
-  80: II-8
-  81: III-1
-  82: III-10
-  83: III-105
-  84: III-105.1
-  85: III-105.3
+  80: II-8  # blacklist
+  81: III-1  # blacklist
+  82: III-10  # blacklist
+  83: III-105  # blacklist
+  84: III-105.1  # blacklist
+  85: III-105.3  # blacklist
   86: III-107-1  # blacklist
   87: III-107-2  # blacklist
   88: III-107.1-1  # blacklist
   89: III-107.1-2  # blacklist
   90: III-107.2-1  # blacklist
   91: III-107.2-2  # blacklist
-  92: III-112
-  93: III-113
+  92: III-112  # blacklist
+  93: III-113  # blacklist
   94: III-12
   95: III-120  # blacklist
   96: III-120-1  # blacklist
   97: III-120.1  # blacklist
   98: III-123  # blacklist
   99: III-124  # blacklist
-  100: III-14
-  101: III-14.1
-  102: III-15
+  100: III-14  # blacklist
+  101: III-14.1  # blacklist
+  102: III-15  # blacklist
   103: III-16
   104: III-18-40
   105: III-18-50
   106: III-18-60
   107: III-18-70
-  108: III-2
+  108: III-2  # blacklist
   109: III-202-5  # blacklist
   110: III-203-2  # blacklist
   111: III-206-1  # blacklist
-  112: III-21
+  112: III-21  # blacklist
   113: III-23
   114: III-25
   115: III-25.1
-  116: III-27
-  117: III-29-30
-  118: III-29-40
+  116: III-27  # blacklist
+  117: III-29-30  # blacklist
+  118: III-29-40  # blacklist
   119: III-3
-  120: III-30-30
-  121: III-33
-  122: III-34
-  123: III-35
-  124: III-37
+  120: III-30-30  # blacklist
+  121: III-33  # blacklist
+  122: III-34  # blacklist
+  123: III-35  # blacklist
+  124: III-37  # blacklist
   125: III-39
-  126: III-40
-  127: III-42
-  128: III-43
-  129: III-45
-  130: III-46
-  131: III-47
+  126: III-40  # blacklist
+  127: III-42  # blacklist
+  128: III-43  # blacklist
+  129: III-45  # blacklist
+  130: III-46  # blacklist
+  131: III-47  # blacklist
   132: III-5
-  133: III-50
+  133: III-50  # blacklist
   134: III-54
-  135: III-59
+  135: III-59  # blacklist
   136: III-6
-  137: III-64
-  138: III-68
-  139: III-74
-  140: III-77
-  141: III-78
-  142: III-8-1
-  143: III-84
-  144: III-84-1
+  137: III-64  # blacklist
+  138: III-68  # blacklist
+  139: III-74  # blacklist
+  140: III-77  # blacklist
+  141: III-78  # blacklist
+  142: III-8-1  # blacklist
+  143: III-84  # blacklist
+  144: III-84-1  # blacklist
   145: III-85-2
   146: III-85-3
-  147: III-85.1
-  148: III-86-1
-  149: III-86-2
-  150: III-87
-  151: III-90
-  152: III-90.1
-  153: III-90.2
-  154: III-91
-  155: IV-1
-  156: IV-1.1
+  147: III-85.1  # blacklist
+  148: III-86-1  # blacklist
+  149: III-86-2  # blacklist
+  150: III-87  # blacklist
+  151: III-90  # blacklist
+  152: III-90.1  # blacklist
+  153: III-90.2  # blacklist
+  154: III-91  # blacklist
+  155: IV-1  # blacklist
+  156: IV-1.1  # blacklist
   157: IV-10
-  158: IV-11
+  158: IV-11  # blacklist
   159: IV-12  # blacklist
   160: IV-12.1  # blacklist
   161: IV-13-1  # blacklist
@@ -176,10 +176,10 @@ names:
   170: IV-16  # blacklist
   171: IV-17  # blacklist
   172: IV-18
-  173: IV-2
+  173: IV-2  # blacklist
   174: IV-20-1  # blacklist
-  175: IV-3-1
-  176: IV-3-2
+  175: IV-3-1  # blacklist
+  176: IV-3-2  # blacklist
   177: IV-3-4  # blacklist
   178: IV-3-5  # blacklist
   179: IV-5  # blacklist
@@ -190,15 +190,15 @@ names:
   184: VI-3.1-1  # blacklist
   185: VI-3.1-2  # blacklist
   186: VI-8  # blacklist
-  187: VII-4
-  188: VII-4-1
-  189: VII-4-2
-  190: VII-4.1-1
-  191: VII-4.3
-  192: VII-4.3-1
-  193: VII-4.3-2
-  194: VII-4.4-1
-  195: VII-4.4-2
+  187: VII-4  # blacklist
+  188: VII-4-1  # blacklist
+  189: VII-4-2  # blacklist
+  190: VII-4.1-1  # blacklist
+  191: VII-4.3  # blacklist
+  192: VII-4.3-1  # blacklist
+  193: VII-4.3-2  # blacklist
+  194: VII-4.4-1  # blacklist
+  195: VII-4.4-2  # blacklist
   196: X-1.1  # blacklist
   197: X-1.2  # blacklist
   198: X-4
