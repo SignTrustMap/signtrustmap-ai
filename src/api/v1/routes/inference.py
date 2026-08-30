@@ -37,12 +37,14 @@ async def process_image(
     logger.debug(f"Queueing YOLO background inference task ID: {task_id} (conf={effective_conf}, device={effective_device})")
 
     detector = model_manager.get_detector()
+    classifier = model_manager.get_classifier()
     background_task.add_task(
         run_image_pipeline,
         task_id=task_id,
         callback_url=callback_url,
         detector=detector,
         image_path=temp_image_path,
+        classifier=classifier,
         conf=effective_conf,
         device=effective_device,
     )
@@ -81,6 +83,7 @@ async def process_video(
     os.makedirs(static_dir, exist_ok=True)
 
     detector = model_manager.get_detector()
+    classifier = model_manager.get_classifier()
     background_task.add_task(
         run_video_pipeline,
         task_id=task_id,
@@ -88,6 +91,7 @@ async def process_video(
         detector=detector,
         video_path=temp_video_path,
         static_dir=static_dir,
+        classifier=classifier,
         conf=effective_conf,
         device=effective_device,
     )

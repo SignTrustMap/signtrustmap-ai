@@ -9,6 +9,7 @@ from loguru import logger
 from src.core.config import settings
 from src.core.config_manager import config_manager
 from src.core.detector import SignDetector
+from src.core.classifier import SignClassifier
 
 
 class ModelManager:
@@ -16,7 +17,7 @@ class ModelManager:
         self._detector: Optional[SignDetector] = None
         self._loaded_detector_path: Optional[str] = None
         
-        self._classifier = None
+        self._classifier: Optional[SignClassifier] = None
         self._loaded_classifier_path: Optional[str] = None
 
         self._last_accessed: float = 0.0
@@ -35,15 +36,14 @@ class ModelManager:
         self._last_accessed = time.time()
         return self._detector
 
-    def get_classifier(self, weights_path: Optional[str] = None):
+    def get_classifier(self, weights_path: Optional[str] = None) -> Optional[SignClassifier]:
         target_weights = weights_path or config_manager.get_active_classifier_path()
         if not target_weights:
             return None
 
         if self._classifier is None or target_weights != self._loaded_classifier_path:
-            logger.info(f"Initializing Classifier with weights: {target_weights}...")
-            from ultralytics import YOLO
-            self._classifier = YOLO(target_weights)
+            logger.info(f"Initializing SignClassifier with weights: {target_weights}...")
+            self._classifier = SignClassifier(weights_path=target_weights)
             self._loaded_classifier_path = target_weights
 
         self._last_accessed = time.time()
@@ -80,8 +80,7 @@ class ModelManager:
             self.unload_classifier()
 
         logger.info(f"Explicitly loading classifier '{clean_name}' into memory...")
-        from ultralytics import YOLO
-        self._classifier = YOLO(str(weights_path))
+        self._classifier = SignClassifier(weights_path=str(weights_path))
         self._loaded_classifier_path = str(weights_path)
         self._last_accessed = time.time()
 
@@ -111,6 +110,11 @@ class ModelManager:
         if self._classifier is not None:
             name = os.path.basename(self._loaded_classifier_path) if self._loaded_classifier_path else "classifier"
             logger.info(f"Unloading classifier '{name}' from memory.")
+            try:
+                self._classifier.unload()
+            except Exception as e:
+                logger.warning(f"Error unloading classifier: {e}")
+
             self._classifier = None
             self._loaded_classifier_path = None
             self._cleanup_memory()
