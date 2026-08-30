@@ -20,7 +20,7 @@ async def lifespan(app: FastAPI):
     model_manager.start_watchdog()
     yield
     model_manager.stop_watchdog()
-    model_manager.unload_model()
+    model_manager.unload_all()
 
 
 app = FastAPI(title="SignTrustMap AI Processing Service", lifespan=lifespan)
