@@ -6,9 +6,18 @@ REPO_DIR="$(dirname "$SCRIPT_DIR")"
 
 cd "$REPO_DIR"
 
+if [ -n "$(git status --porcelain)" ]; then
+    BACKUP_BRANCH="backup/local-$(date +%Y%m%d_%H%M%S)"
+    echo "⚠️ Detected uncommitted local changes. Saving to branch: $BACKUP_BRANCH"
+    git checkout -b "$BACKUP_BRANCH"
+    git add -A
+    git commit -m "chore: auto backup local changes before deploy at $(date '+%Y-%m-%d %H:%M:%S')"
+fi
+
 echo "=== 1. Pulling latest changes from origin/main ==="
 git fetch origin main
-git reset --hard origin/main
+git checkout -B main origin/main
+
 
 echo "=== 2. Restarting SignTrustMap AI Service ==="
 sudo systemctl restart signtrustmap-ai
