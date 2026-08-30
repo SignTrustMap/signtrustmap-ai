@@ -1,6 +1,7 @@
 from typing import Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+
 class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     LOG_TO_JSON: bool = False
@@ -10,15 +11,23 @@ class Settings(BaseSettings):
     MINIO_SECRET_KEY: Optional[str] = None
     MINIO_BUCKET: str = "best-frames"
     
-    MODEL_S3_KEY: Optional[str] = "models/yolo12n_VTSDB100_v1.0.pt"
-    LOCAL_WEIGHTS_DIR: str = "weights"
-    FALLBACK_MODEL_PATH: str = "weights/yolo12n_VTSDB100_v1.0.pt"
+    DETECTOR_S3_KEY: Optional[str] = "models/detectors/yolo12n_VTSDB100_v1.0.pt"
+    CLASSIFIER_S3_KEY: Optional[str] = None
+    
+    LOCAL_DETECTORS_DIR: str = "weights/detectors"
+    LOCAL_CLASSIFIERS_DIR: str = "weights/classifiers"
+    
+    FALLBACK_DETECTOR_PATH: str = "weights/detectors/yolo12n_VTSDB100_v1.0.pt"
+    FALLBACK_CLASSIFIER_PATH: Optional[str] = None
+    
     HEALTH_CHECK_TIMEOUT: int = 2
+    MODEL_IDLE_TIMEOUT_SECONDS: int = 1800
     
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore"
     )
+
 
 settings = Settings()

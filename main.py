@@ -1,4 +1,5 @@
 import os
+from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -6,11 +7,23 @@ from src.core.logger import setup_logger
 setup_logger()
 
 from src.core.utils import get_reload_excludes
+from src.core.config_manager import config_manager
+from src.core.model_manager import model_manager
 from fastapi import FastAPI
 import uvicorn
 from src.api.router import api_router
 
-app = FastAPI(title="SignTrustMap AI Processing Service")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    config_manager.load_config()
+    model_manager.start_watchdog()
+    yield
+    model_manager.stop_watchdog()
+    model_manager.unload_model()
+
+
+app = FastAPI(title="SignTrustMap AI Processing Service", lifespan=lifespan)
 
 app.include_router(api_router)
 
@@ -21,4 +34,3 @@ if __name__ == "__main__":
     
     excludes = get_reload_excludes()
     uvicorn.run("main:app", host=host, port=port, reload=reload, log_config=None, reload_excludes=excludes)
-
