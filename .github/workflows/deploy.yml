@@ -8,11 +8,16 @@ on:
 
 jobs:
   deploy:
-    name: Deploy & Hot Reload
+    name: Deploy
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v3
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
 
       - name: Execute Remote Deployment via SSH
         uses: appleboy/ssh-action@v1.2.0
