@@ -31,7 +31,7 @@ async def process_image(
     with open(temp_image_path, "wb") as buffer:
         shutil.copyfileobj(image.file, buffer)
 
-    effective_conf = conf if conf is not None else config_manager.default_conf
+    effective_conf = conf if conf is not None else config_manager.default_detector_conf
     effective_device = device if device is not None else config_manager.default_device
 
     logger.debug(f"Queueing YOLO background inference task ID: {task_id} (conf={effective_conf}, device={effective_device})")
@@ -71,12 +71,12 @@ async def process_video(
     with open(temp_video_path, "wb") as buffer:
         shutil.copyfileobj(video.file, buffer)
 
-    effective_conf = conf if conf is not None else config_manager.default_conf
+    effective_conf = conf if conf is not None else config_manager.default_detector_conf
     effective_device = device if device is not None else config_manager.default_device
 
     logger.debug(f"Queueing YOLO background video tracking task ID: {task_id} (conf={effective_conf}, device={effective_device})")
 
-    base_dir = Path(__file__).resolve().parent.parent.parent.parent
+    base_dir = Path(__file__).resolve().parent.parent.parent.parent.parent
     static_dir = os.path.join(str(base_dir), "static", "extracted_frames")
     os.makedirs(static_dir, exist_ok=True)
 

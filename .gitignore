@@ -110,7 +110,8 @@ Thumbs.db
 *.swp
 *.swo
 
-weights/
+weights/**/*
+!weights/**/.gitkeep
 data/
 .agents/
 kaggle_upload/

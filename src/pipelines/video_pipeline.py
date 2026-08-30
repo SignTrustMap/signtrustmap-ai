@@ -16,7 +16,7 @@ def run_video_pipeline(
     conf: float = 0.6,
     device: int = 0,
 ) -> None:
-    logger.info(f"[{task_id}] Starting pure YOLO video tracking pipeline for {video_path} (conf={conf}, device={device})")
+    logger.info(f"[{task_id}] Starting video tracking pipeline for {video_path} (conf={conf}, device={device})")
 
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
@@ -55,11 +55,13 @@ def run_video_pipeline(
                     "class_id": obj["class_id"],
                     "class_name": obj["class_name"],
                     "confidence": obj["confidence"],
+                    "detect_confidence": obj.get("detect_confidence", obj["confidence"]),
+                    "classify_confidence": obj.get("classify_confidence"),
                     "box_xyxy": obj["box_xyxy"],
                 })
 
     except Exception as e:
-        msg = f"Exception occurred during YOLO video tracking: {str(e)}"
+        msg = f"Exception occurred during video tracking: {str(e)}"
         logger.exception(f"[{task_id}] Video tracking failed: {msg}")
         payload = {"task_id": task_id, "status": "FAILED", "video_fps": fps, "total_frames": frames_processed, "total_signs": 0, "result": None, "error": msg}
         send_callback(callback_url, payload)
@@ -99,6 +101,8 @@ def run_video_pipeline(
             "class_id": best_det["class_id"],
             "class_name": best_det["class_name"],
             "confidence": best_det["confidence"],
+            "detect_confidence": best_det.get("detect_confidence", best_det["confidence"]),
+            "classify_confidence": best_det.get("classify_confidence"),
             "best_frame_idx": best_det["frame_idx"],
             "best_timestamp_seconds": best_det["timestamp_seconds"],
             "box_xyxy": best_det["box_xyxy"],

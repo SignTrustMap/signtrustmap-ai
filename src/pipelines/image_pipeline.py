@@ -6,7 +6,7 @@ from src.pipelines.utils import send_callback
 
 def run_image_pipeline(task_id: str, callback_url: str, detector, image_path: str, conf: float = 0.6, device: int = 0):
     filename = os.path.basename(image_path)
-    logger.info(f"[{task_id}] Executing pure YOLO image pipeline for {filename} (conf={conf}, device={device})...")
+    logger.info(f"[{task_id}] Executing image inference pipeline for {filename} (conf={conf}, device={device})...")
 
     try:
         img = cv2.imread(image_path)
@@ -22,10 +22,12 @@ def run_image_pipeline(task_id: str, callback_url: str, detector, image_path: st
                 "class_id": det["class_id"],
                 "class_name": det["class_name"],
                 "confidence": det["confidence"],
+                "detect_confidence": det.get("detect_confidence", det["confidence"]),
+                "classify_confidence": det.get("classify_confidence"),
                 "box_xyxy": det["box_xyxy"],
             })
 
-        logger.info(f"[{task_id}] YOLO image detection complete. Found {len(sign_results)} sign(s).")
+        logger.info(f"[{task_id}] Image detection complete. Found {len(sign_results)} sign(s).")
 
         payload = {
             "task_id": task_id,
