@@ -1,3 +1,5 @@
+import os
+import shutil
 import boto3
 import torch
 from src.core.config import settings
@@ -12,6 +14,29 @@ def check_cuda():
         return {"status": "healthy", "available": False, "device": "CPU", "error": None}
     except Exception as e:
         return {"status": "unhealthy", "available": False, "device": None, "error": str(e)}
+
+
+def check_tensorrt():
+    try:
+        import tensorrt as trt
+        version = trt.__version__
+        trtexec_path = "/usr/src/tensorrt/bin/trtexec"
+        has_trtexec = os.path.exists(trtexec_path) or (shutil.which("trtexec") is not None)
+        return {
+            "status": "healthy",
+            "available": True,
+            "version": version,
+            "trtexec_available": has_trtexec,
+            "error": None,
+        }
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "available": False,
+            "version": None,
+            "trtexec_available": False,
+            "error": str(e),
+        }
 
 
 def check_minio():

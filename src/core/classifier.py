@@ -6,12 +6,37 @@ import cv2
 import numpy as np
 from PIL import Image
 import torch
+from torchvision import transforms
+import tensorrt as trt
 from loguru import logger
 import clip
 import open_clip
 from src.core.config import settings
 from src.core.classes import DEFAULT_CLASSES, get_default_prompts
 from src.infrastructure.minio_client import download_model_from_minio
+
+
+class TensorRTVisualRunner:
+    def __init__(self, engine_path: str, device: str = "cuda:0"):
+        self.device = torch.device(device)
+        self.logger = trt.Logger(trt.Logger.WARNING)
+        with open(engine_path, "rb") as f:
+            runtime = trt.Runtime(self.logger)
+            self.engine = runtime.deserialize_cuda_engine(f.read())
+        self.context = self.engine.create_execution_context()
+
+    def encode_image(self, batch_tensor: torch.Tensor) -> torch.Tensor:
+        if not batch_tensor.is_cuda:
+            batch_tensor = batch_tensor.to(self.device)
+
+        batch_size = batch_tensor.shape[0]
+        self.context.set_input_shape("images", tuple(batch_tensor.shape))
+        output_tensor = torch.empty((batch_size, 512), dtype=torch.float32, device=self.device)
+
+        bindings = [batch_tensor.data_ptr(), output_tensor.data_ptr()]
+        self.context.execute_v2(bindings)
+        output_tensor = output_tensor / output_tensor.norm(dim=-1, keepdim=True)
+        return output_tensor
 
 
 class SignClassifier:
@@ -42,7 +67,7 @@ class SignClassifier:
     @staticmethod
     def _normalize_name(name: str) -> Tuple[str, str]:
         clean = os.path.basename(name).strip()
-        clip_name = clean.removesuffix(".pt").replace("-", "/")
+        clip_name = clean.removesuffix(".pt").removesuffix(".engine").removesuffix(".onnx").replace("-", "/")
         file_name = f"{clip_name.replace('/', '-')}.pt"
         return clip_name, file_name
 
@@ -60,14 +85,14 @@ class SignClassifier:
                     success = download_model_from_minio(settings.CLASSIFIER_S3_KEY, str(local_path))
                     if not success:
                         logger.warning(f"Failed MinIO download for '{settings.CLASSIFIER_S3_KEY}'. Falling back to local default.")
-                        fallback_path = base_dir / (settings.FALLBACK_CLASSIFIER_PATH or "weights/classifiers/mobileclip_s2.pt")
+                        fallback_path = base_dir / (settings.FALLBACK_CLASSIFIER_PATH or "weights/classifiers/mobileclip_s2.engine")
                         weights_path = str(fallback_path)
                     else:
                         weights_path = str(local_path)
                 else:
                     weights_path = str(local_path)
             else:
-                fallback_path = base_dir / (settings.FALLBACK_CLASSIFIER_PATH or "weights/classifiers/mobileclip_s2.pt")
+                fallback_path = base_dir / (settings.FALLBACK_CLASSIFIER_PATH or "weights/classifiers/mobileclip_s2.engine")
                 weights_path = str(fallback_path)
 
         target_path = Path(weights_path)
@@ -94,6 +119,17 @@ class SignClassifier:
     def _load_model(self, weights_path: str):
         base_dir = Path(__file__).resolve().parent.parent.parent
         download_root = str(base_dir / "weights" / "classifiers")
+
+        if weights_path.endswith(".engine"):
+            self._is_mobileclip = "mobileclip" in weights_path.lower()
+            img_size = 256 if self._is_mobileclip else 224
+            preprocess = transforms.Compose([
+                transforms.Resize((img_size, img_size), interpolation=transforms.InterpolationMode.BILINEAR),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=(0.0, 0.0, 0.0), std=(1.0, 1.0, 1.0)) if self._is_mobileclip else transforms.Normalize(mean=(0.48145466, 0.4578275, 0.40821073), std=(0.26862954, 0.26130258, 0.27577711)),
+            ])
+            runner = TensorRTVisualRunner(weights_path, device=self.device)
+            return runner, preprocess
 
         if "mobileclip" in weights_path.lower():
             self._is_mobileclip = True
@@ -260,7 +296,7 @@ class SignClassifier:
     def classify_crops_batch(
         self,
         crops: List[Optional[np.ndarray]],
-        batch_size: int = 16,
+        batch_size: int = 4,
     ) -> List[Dict[str, Any]]:
         if not crops:
             return []
