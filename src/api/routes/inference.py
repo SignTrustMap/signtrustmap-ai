@@ -5,21 +5,12 @@ import tempfile
 from pathlib import Path
 from fastapi import APIRouter, UploadFile, File, Form, BackgroundTasks
 from loguru import logger
-from src.core.detector import SignDetector
+from src.core.model_manager import model_manager
 from src.pipelines.image_pipeline import run_image_pipeline
 from src.pipelines.video_pipeline import run_video_pipeline
 from src.api.schemas import ImageProcessingResponse, VideoProcessingResponse
 
 router = APIRouter(tags=["Inference"])
-
-_detector_instance = None
-
-
-def get_detector():
-    global _detector_instance
-    if _detector_instance is None:
-        _detector_instance = SignDetector()
-    return _detector_instance
 
 
 @router.post("/image", response_model=ImageProcessingResponse)
@@ -40,7 +31,7 @@ async def process_image(
 
     logger.debug(f"Image received and saved. Queueing YOLO background inference task ID: {task_id}")
 
-    detector = get_detector()
+    detector = model_manager.get_detector()
     background_task.add_task(
         run_image_pipeline,
         task_id=task_id,
@@ -81,7 +72,7 @@ async def process_video(
     static_dir = os.path.join(str(base_dir), "static", "extracted_frames")
     os.makedirs(static_dir, exist_ok=True)
 
-    detector = get_detector()
+    detector = model_manager.get_detector()
     background_task.add_task(
         run_video_pipeline,
         task_id=task_id,

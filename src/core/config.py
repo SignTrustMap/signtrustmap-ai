@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     LOCAL_WEIGHTS_DIR: str = "weights"
     FALLBACK_MODEL_PATH: str = "weights/yolo12n_VTSDB100_v1.0.pt"
     HEALTH_CHECK_TIMEOUT: int = 2
+    MODEL_IDLE_TIMEOUT_SECONDS: int = 1800
     
     model_config = SettingsConfigDict(
         env_file=".env",

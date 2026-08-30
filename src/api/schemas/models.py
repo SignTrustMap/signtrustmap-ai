@@ -43,8 +43,16 @@ class ModelFileInfo(BaseModel):
     size_bytes: int = Field(..., description="Size of the file in bytes")
     size_human: str = Field(..., description="Human-readable file size")
     modified_at: str = Field(..., description="Last modified timestamp")
+    is_loaded: bool = Field(False, description="Whether this model is currently loaded in memory")
 
 
 class ModelListResponse(BaseModel):
     total: int = Field(..., description="Total count of model files")
+    loaded_model: Optional[str] = Field(None, description="Filename of currently loaded model in memory")
     models: List[ModelFileInfo] = Field(..., description="List of models in weights directory")
+
+
+class ModelUnloadResponse(BaseModel):
+    status: str = Field(..., description="Status of the unload operation", examples=["UNLOADED", "ALREADY_UNLOADED"])
+    message: str = Field(..., description="Details regarding memory reclamation", examples=["Model successfully unloaded and memory reclaimed."])
+

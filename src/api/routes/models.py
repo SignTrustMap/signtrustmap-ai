@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import List
 from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 from loguru import logger
+from src.core.model_manager import model_manager
 from src.pipelines.export_pipeline import run_export_pipeline, export_lock, export_tasks
 from src.api.schemas import (
     ModelExportRequest,
@@ -12,6 +13,7 @@ from src.api.schemas import (
     ModelExportStatusResponse,
     ModelListResponse,
     ModelFileInfo,
+    ModelUnloadResponse,
 )
 
 router = APIRouter(tags=["Models"])
@@ -97,11 +99,27 @@ async def get_export_task_status(task_id: str):
     }
 
 
+@router.post("/unload", response_model=ModelUnloadResponse)
+async def unload_model_endpoint():
+    logger.info("Received request to explicitly unload model from memory.")
+    was_unloaded = model_manager.unload_model()
+    if was_unloaded:
+        return {
+            "status": "UNLOADED",
+            "message": "Model successfully unloaded and RAM/VRAM memory reclaimed.",
+        }
+    return {
+        "status": "ALREADY_UNLOADED",
+        "message": "No model is currently loaded in memory.",
+    }
+
+
 @router.get("", response_model=ModelListResponse)
 async def list_available_models():
     base_dir = Path(__file__).resolve().parent.parent.parent.parent
     weights_dir = base_dir / "weights"
 
+    loaded_name = model_manager.get_loaded_model_filename()
     models: List[ModelFileInfo] = []
     if weights_dir.exists() and weights_dir.is_dir():
         for file_path in sorted(weights_dir.iterdir()):
@@ -109,6 +127,7 @@ async def list_available_models():
                 stat = file_path.stat()
                 mod_time = datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M:%S")
                 fmt = file_path.suffix.lstrip(".").lower()
+                is_curr_loaded = (loaded_name is not None and file_path.name == loaded_name)
                 models.append(
                     ModelFileInfo(
                         filename=file_path.name,
@@ -116,11 +135,13 @@ async def list_available_models():
                         size_bytes=stat.st_size,
                         size_human=_format_size_human(stat.st_size),
                         modified_at=mod_time,
+                        is_loaded=is_curr_loaded,
                     )
                 )
 
-    logger.debug(f"Retrieved {len(models)} model file(s) from weights directory.")
+    logger.debug(f"Retrieved {len(models)} model file(s) from weights directory. Loaded: {loaded_name}")
     return {
         "total": len(models),
+        "loaded_model": loaded_name,
         "models": models,
     }
