@@ -2,7 +2,7 @@ import os
 from ultralytics import YOLO
 from loguru import logger
 from src.core.config import settings
-from src.infrastructure.minio_client import download_model_from_minio
+from src.infrastructure.minio_client import minio_client
 
 
 class SignDetector:
@@ -17,7 +17,7 @@ class SignDetector:
                 
                 if not os.path.exists(weights_path):
                     logger.info(f"Detector file {model_filename} not found locally at {weights_path}.")
-                    success = download_model_from_minio(settings.DETECTOR_S3_KEY, weights_path)
+                    success = minio_client.download_file(settings.DETECTOR_S3_KEY, weights_path)
                     if not success:
                         logger.warning(f"Could not download detector {settings.DETECTOR_S3_KEY} from MinIO. Trying fallback detector path.")
                         weights_path = os.path.join(base_dir, settings.FALLBACK_DETECTOR_PATH)

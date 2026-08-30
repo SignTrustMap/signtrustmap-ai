@@ -3,7 +3,7 @@ import shutil
 import cv2
 from loguru import logger
 from src.pipelines.frame_extractor import extract_video_frame
-from src.infrastructure.minio_client import upload_frame_to_minio
+from src.infrastructure.minio_client import minio_client
 from src.pipelines.utils import send_callback
 
 
@@ -131,7 +131,7 @@ def run_video_pipeline(
 
         frame_url = None
         if best_frame_path and os.path.exists(best_frame_path):
-            upload_success, upload_url = upload_frame_to_minio(best_frame_path, f"{task_id}/sign_{obj_id}.jpg")
+            upload_success, upload_url = minio_client.upload_file(best_frame_path, f"{task_id}/sign_{obj_id}.jpg")
             if upload_success:
                 frame_url = upload_url
 

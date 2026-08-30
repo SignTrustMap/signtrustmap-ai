@@ -13,7 +13,7 @@ import clip
 import open_clip
 from src.core.config import settings
 from src.core.class_manager import class_manager
-from src.infrastructure.minio_client import download_model_from_minio
+from src.infrastructure.minio_client import minio_client
 
 
 class TensorRTVisualRunner:
@@ -84,7 +84,7 @@ class SignClassifier:
                 local_path = classifiers_dir / model_filename
                 if not local_path.exists():
                     logger.info(f"Downloading classifier '{model_filename}' from MinIO...")
-                    success = download_model_from_minio(settings.CLASSIFIER_S3_KEY, str(local_path))
+                    success = minio_client.download_file(settings.CLASSIFIER_S3_KEY, str(local_path))
                     if not success:
                         logger.warning(f"Failed MinIO download for '{settings.CLASSIFIER_S3_KEY}'. Falling back to local default.")
                         fallback_path = base_dir / (settings.FALLBACK_CLASSIFIER_PATH or "weights/classifiers/mobileclip_s2.engine")

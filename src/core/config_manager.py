@@ -57,7 +57,7 @@ class ConfigManager:
             "active_learning": {
                 "default_top_k": 50,
                 "default_strategy": "least_confidence",
-                "default_aggregation": "min_confidence",
+                "default_aggregation": "avg",
                 "no_detection_score": 0.0,
             },
             "detector": {
