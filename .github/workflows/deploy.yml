@@ -1,0 +1,30 @@
+name: Deploy to Jetson Server
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy & Hot Reload
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Execute Remote Deployment via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          port: ${{ secrets.SSH_PORT }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            if [ -z "${{ secrets.DEPLOY_PATH }}" ]; then
+              echo "Error: DEPLOY_PATH secret is not configured in repository secrets."
+              exit 1
+            fi
+            cd "${{ secrets.DEPLOY_PATH }}"
+            bash deploy/deploy.sh

@@ -78,6 +78,7 @@ celerybeat.pid
 *.sage.py
 
 .env
+.env.deploy
 .venv
 env/
 venv/
@@ -121,4 +122,5 @@ kaggle_upload/
 runs
 outputs
 configs/
-deploy/
+deploy/*.service
+deploy/setup_services.sh
