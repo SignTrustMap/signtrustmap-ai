@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from loguru import logger
-from src.infrastructure.health import check_exiftool, check_minio, check_ffprobe
+from src.infrastructure.health import check_cuda, check_minio
 
 router = APIRouter(tags=["Health"])
 
@@ -9,21 +9,19 @@ router = APIRouter(tags=["Health"])
 async def health_check():
     logger.info("Executing API dependency health check.")
 
-    exif = check_exiftool()
-    ffprobe = check_ffprobe()
+    cuda = check_cuda()
     minio = check_minio()
 
     overall_status = "healthy"
-    if exif["status"] == "unhealthy" or ffprobe["status"] == "unhealthy":
+    if cuda["status"] == "unhealthy":
         overall_status = "unhealthy"
 
-    logger.debug(f"Health check status: {overall_status} (Exiftool: {exif['status']}, FFprobe: {ffprobe['status']}, MinIO: {minio['status']})")
+    logger.debug(f"Health check status: {overall_status} (CUDA: {cuda['status']}, MinIO: {minio['status']})")
 
     return {
         "status": overall_status,
         "dependencies": {
-            "exiftool": exif,
-            "ffprobe": ffprobe,
+            "cuda": cuda,
             "minio": minio,
         },
     }
