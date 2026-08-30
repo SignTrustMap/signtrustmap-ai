@@ -1,30 +1,17 @@
-import subprocess
-import shutil
 import boto3
+import torch
 from src.core.config import settings
 
-def check_exiftool():
-    if not shutil.which("exiftool"):
-        return {"status": "unhealthy", "version": None, "error": "exiftool is not installed"}
-    try:
-        res = subprocess.run(["exiftool", "-ver"], capture_output=True, text=True, timeout=settings.HEALTH_CHECK_TIMEOUT)
-        if res.returncode == 0:
-            return {"status": "healthy", "version": res.stdout.strip(), "error": None}
-        return {"status": "unhealthy", "version": None, "error": f"Exit code {res.returncode}"}
-    except Exception as e:
-        return {"status": "unhealthy", "version": None, "error": str(e)}
 
-def check_ffprobe():
-    if not shutil.which("ffprobe"):
-        return {"status": "unhealthy", "version": None, "error": "ffprobe is not installed"}
+def check_cuda():
     try:
-        res = subprocess.run(["ffprobe", "-version"], capture_output=True, text=True, timeout=settings.HEALTH_CHECK_TIMEOUT)
-        if res.returncode == 0:
-            version_line = res.stdout.splitlines()[0]
-            return {"status": "healthy", "version": version_line, "error": None}
-        return {"status": "unhealthy", "version": None, "error": f"Exit code {res.returncode}"}
+        available = torch.cuda.is_available()
+        if available:
+            device_name = torch.cuda.get_device_name(0)
+            return {"status": "healthy", "available": True, "device": device_name, "error": None}
+        return {"status": "healthy", "available": False, "device": "CPU", "error": None}
     except Exception as e:
-        return {"status": "unhealthy", "version": None, "error": str(e)}
+        return {"status": "unhealthy", "available": False, "device": None, "error": str(e)}
 
 
 def check_minio():
@@ -45,4 +32,3 @@ def check_minio():
         return {"status": "healthy", "error": None}
     except Exception as e:
         return {"status": "unhealthy", "error": str(e)}
-
