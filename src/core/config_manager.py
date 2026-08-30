@@ -13,7 +13,11 @@ class ConfigManager:
         self._config_file = self._base_dir / "configs" / "app_config.json"
         
         self.active_detector_model: str = os.path.basename(settings.FALLBACK_DETECTOR_PATH)
-        self.active_classifier_model: Optional[str] = "mobileclip_s2.pt" if (self._base_dir / "weights" / "classifiers" / "mobileclip_s2.pt").exists() else "ViT-B-16.pt"
+        self.active_classifier_model: Optional[str] = (
+            "mobileclip_s2.engine"
+            if (self._base_dir / "weights" / "classifiers" / "mobileclip_s2.engine").exists()
+            else ("mobileclip_s2.pt" if (self._base_dir / "weights" / "classifiers" / "mobileclip_s2.pt").exists() else "ViT-B-16.pt")
+        )
         self.classifier_prompt_template: str = settings.CLASSIFIER_PROMPT_TEMPLATE
         self.default_detector_conf: float = 0.6
         self.default_classifier_conf: float = 0.6

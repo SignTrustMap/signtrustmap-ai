@@ -16,6 +16,7 @@ dependencies = [
     "manim>=0.19.1",
     "numpy>=2.2.6",
     "onnx>=1.22.0",
+    "onnxscript>=0.7.1",
     "onnxslim>=0.1.96",
     "open-clip-torch>=3.3.0",
     "openai-clip>=1.0.1",
