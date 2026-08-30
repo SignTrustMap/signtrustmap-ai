@@ -3,7 +3,7 @@ import json
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 from loguru import logger
-from src.core.system_metrics import metrics_collector
+from src.infrastructure.system_metrics import metrics_collector
 from src.infrastructure.health import check_cuda, check_tensorrt, check_minio
 from src.api.schemas.system import SystemMetricsResponse, HealthResponse
 

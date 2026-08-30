@@ -2,7 +2,7 @@ import os
 import shutil
 import cv2
 from loguru import logger
-from src.core.frame_extractor import extract_video_frame
+from src.pipelines.frame_extractor import extract_video_frame
 from src.infrastructure.minio_client import upload_frame_to_minio
 from src.pipelines.utils import send_callback
 
