@@ -13,6 +13,7 @@ def run_video_pipeline(
     detector,
     video_path: str,
     static_dir: str,
+    classifier=None,
     conf: float = 0.6,
     device: int = 0,
 ) -> None:
@@ -79,33 +80,71 @@ def run_video_pipeline(
         if not valid_detections:
             continue
 
-        best_det = max(
+        sorted_candidates = sorted(
             valid_detections,
             key=lambda x: (
                 x.get("confidence", 0.0),
                 (x["box_xyxy"][2] - x["box_xyxy"][0]) * (x["box_xyxy"][3] - x["box_xyxy"][1]) if "box_xyxy" in x else 0.0
-            )
+            ),
+            reverse=True,
         )
 
-        frame_filename = f"sign_{obj_id}_conf_{best_det['confidence']:.4f}.jpg"
-        output_frame_path = os.path.join(task_frames_dir, frame_filename)
+        top_candidates = sorted_candidates[:3]
+        best_candidate = top_candidates[0]
+        best_cls_id = best_candidate["class_id"]
+        best_cls_name = best_candidate["class_name"]
+        best_cls_conf = None
+        best_frame_path = None
+        best_score = -1.0
+
+        for cand in top_candidates:
+            cand_frame_idx = cand["frame_idx"]
+            temp_frame_filename = f"sign_{obj_id}_frame_{cand_frame_idx}.jpg"
+            temp_frame_path = os.path.join(task_frames_dir, temp_frame_filename)
+
+            if extract_video_frame(video_path, cand_frame_idx, temp_frame_path):
+                cand_cls_id = cand["class_id"]
+                cand_cls_name = cand["class_name"]
+                cand_cls_conf = None
+
+                if classifier is not None and os.path.exists(temp_frame_path):
+                    frame_img = cv2.imread(temp_frame_path)
+                    if frame_img is not None:
+                        crop = classifier.crop_box(frame_img, cand["box_xyxy"])
+                        cls_res = classifier.classify_crop(crop)
+                        if cls_res["class_id"] is not None:
+                            cand_cls_id = cls_res["class_id"]
+                            cand_cls_name = cls_res["class_name"]
+                            cand_cls_conf = cls_res.get("classify_confidence")
+
+                det_c = cand.get("detect_confidence", cand["confidence"])
+                cls_c = cand_cls_conf if cand_cls_conf is not None else 1.0
+                combined_score = det_c * cls_c
+
+                if combined_score > best_score:
+                    best_score = combined_score
+                    best_candidate = cand
+                    best_cls_id = cand_cls_id
+                    best_cls_name = cand_cls_name
+                    best_cls_conf = cand_cls_conf
+                    best_frame_path = temp_frame_path
 
         frame_url = None
-        if extract_video_frame(video_path, best_det["frame_idx"], output_frame_path):
-            upload_success, upload_url = upload_frame_to_minio(output_frame_path, f"{task_id}/sign_{obj_id}.jpg")
+        if best_frame_path and os.path.exists(best_frame_path):
+            upload_success, upload_url = upload_frame_to_minio(best_frame_path, f"{task_id}/sign_{obj_id}.jpg")
             if upload_success:
                 frame_url = upload_url
 
         final_signs.append({
             "id": obj_id,
-            "class_id": best_det["class_id"],
-            "class_name": best_det["class_name"],
-            "confidence": best_det["confidence"],
-            "detect_confidence": best_det.get("detect_confidence", best_det["confidence"]),
-            "classify_confidence": best_det.get("classify_confidence"),
-            "best_frame_idx": best_det["frame_idx"],
-            "best_timestamp_seconds": best_det["timestamp_seconds"],
-            "box_xyxy": best_det["box_xyxy"],
+            "class_id": best_cls_id,
+            "class_name": best_cls_name,
+            "confidence": best_cls_conf if best_cls_conf is not None else best_candidate["confidence"],
+            "detect_confidence": best_candidate.get("detect_confidence", best_candidate["confidence"]),
+            "classify_confidence": best_cls_conf,
+            "best_frame_idx": best_candidate["frame_idx"],
+            "best_timestamp_seconds": best_candidate["timestamp_seconds"],
+            "box_xyxy": best_candidate["box_xyxy"],
             "occurrences": len(valid_detections),
             "frame_image_url": frame_url,
         })

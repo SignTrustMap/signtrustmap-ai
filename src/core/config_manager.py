@@ -13,7 +13,8 @@ class ConfigManager:
         self._config_file = self._base_dir / "configs" / "app_config.json"
         
         self.active_detector_model: str = os.path.basename(settings.FALLBACK_DETECTOR_PATH)
-        self.active_classifier_model: Optional[str] = None
+        self.active_classifier_model: Optional[str] = "mobileclip_s2.pt" if (self._base_dir / "weights" / "classifiers" / "mobileclip_s2.pt").exists() else "ViT-B-16.pt"
+        self.classifier_prompt_template: str = settings.CLASSIFIER_PROMPT_TEMPLATE
         self.default_detector_conf: float = 0.6
         self.default_classifier_conf: float = 0.6
         self.model_idle_timeout_seconds: int = settings.MODEL_IDLE_TIMEOUT_SECONDS
@@ -27,6 +28,7 @@ class ConfigManager:
                     data: Dict[str, Any] = json.load(f)
                     self.active_detector_model = data.get("active_detector_model", data.get("active_model", self.active_detector_model))
                     self.active_classifier_model = data.get("active_classifier_model", self.active_classifier_model)
+                    self.classifier_prompt_template = data.get("classifier_prompt_template", self.classifier_prompt_template)
                     self.default_detector_conf = float(data.get("default_detector_conf", data.get("default_conf", self.default_detector_conf)))
                     self.default_classifier_conf = float(data.get("default_classifier_conf", self.default_classifier_conf))
                     self.model_idle_timeout_seconds = int(data.get("model_idle_timeout_seconds", self.model_idle_timeout_seconds))
@@ -45,6 +47,7 @@ class ConfigManager:
             data = {
                 "active_detector_model": self.active_detector_model,
                 "active_classifier_model": self.active_classifier_model,
+                "classifier_prompt_template": self.classifier_prompt_template,
                 "default_detector_conf": self.default_detector_conf,
                 "default_classifier_conf": self.default_classifier_conf,
                 "model_idle_timeout_seconds": self.model_idle_timeout_seconds,
@@ -61,6 +64,7 @@ class ConfigManager:
         return AppConfigResponse(
             active_detector_model=self.active_detector_model,
             active_classifier_model=self.active_classifier_model,
+            classifier_prompt_template=self.classifier_prompt_template,
             default_detector_conf=self.default_detector_conf,
             default_classifier_conf=self.default_classifier_conf,
             model_idle_timeout_seconds=self.model_idle_timeout_seconds,
@@ -76,6 +80,9 @@ class ConfigManager:
 
         if req.active_classifier_model is not None:
             self.set_active_classifier(req.active_classifier_model)
+
+        if req.classifier_prompt_template is not None:
+            self.classifier_prompt_template = req.classifier_prompt_template
 
         if req.default_detector_conf is not None:
             self.default_detector_conf = req.default_detector_conf
@@ -127,16 +134,29 @@ class ConfigManager:
 
     def get_active_classifier_path(self) -> Optional[str]:
         if not self.active_classifier_model:
+            fallback = self._base_dir / "weights" / "classifiers" / "mobileclip_s2.pt"
+            if fallback.exists():
+                return str(fallback)
+            fallback_vit = self._base_dir / "weights" / "classifiers" / "ViT-B-16.pt"
+            if fallback_vit.exists():
+                return str(fallback_vit)
             return None
         weights_path = self._base_dir / "weights" / "classifiers" / self.active_classifier_model
         if weights_path.exists():
             return str(weights_path)
+        fallback = self._base_dir / "weights" / "classifiers" / "mobileclip_s2.pt"
+        if fallback.exists():
+            return str(fallback)
+        fallback_vit = self._base_dir / "weights" / "classifiers" / "ViT-B-16.pt"
+        if fallback_vit.exists():
+            return str(fallback_vit)
         return None
 
     def reset_config(self) -> AppConfigResponse:
         logger.info("Resetting runtime configuration back to factory default settings.")
         self.active_detector_model = os.path.basename(settings.FALLBACK_DETECTOR_PATH)
-        self.active_classifier_model = None
+        self.active_classifier_model = "mobileclip_s2.pt" if (self._base_dir / "weights" / "classifiers" / "mobileclip_s2.pt").exists() else None
+        self.classifier_prompt_template = settings.CLASSIFIER_PROMPT_TEMPLATE
         self.default_detector_conf = 0.6
         self.default_classifier_conf = 0.6
         self.model_idle_timeout_seconds = 1800

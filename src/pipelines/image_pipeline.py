@@ -4,7 +4,15 @@ from loguru import logger
 from src.pipelines.utils import send_callback
 
 
-def run_image_pipeline(task_id: str, callback_url: str, detector, image_path: str, conf: float = 0.6, device: int = 0):
+def run_image_pipeline(
+    task_id: str,
+    callback_url: str,
+    detector,
+    image_path: str,
+    classifier=None,
+    conf: float = 0.6,
+    device: int = 0,
+):
     filename = os.path.basename(image_path)
     logger.info(f"[{task_id}] Executing image inference pipeline for {filename} (conf={conf}, device={device})...")
 
@@ -17,17 +25,34 @@ def run_image_pipeline(task_id: str, callback_url: str, detector, image_path: st
         detections = detector.detect(image_path, conf=conf, device=device)
         sign_results = []
 
-        for det in detections:
-            sign_results.append({
-                "class_id": det["class_id"],
-                "class_name": det["class_name"],
-                "confidence": det["confidence"],
-                "detect_confidence": det.get("detect_confidence", det["confidence"]),
-                "classify_confidence": det.get("classify_confidence"),
-                "box_xyxy": det["box_xyxy"],
-            })
+        if classifier is not None and img is not None and len(detections) > 0:
+            crops = [classifier.crop_box(img, det["box_xyxy"]) for det in detections]
+            cls_results = classifier.classify_crops_batch(crops)
 
-        logger.info(f"[{task_id}] Image detection complete. Found {len(sign_results)} sign(s).")
+            for det, cls_res in zip(detections, cls_results):
+                class_id = cls_res["class_id"] if cls_res["class_id"] is not None else det["class_id"]
+                class_name = cls_res["class_name"] if cls_res["class_id"] is not None else det["class_name"]
+                cls_conf = cls_res.get("classify_confidence")
+                sign_results.append({
+                    "class_id": class_id,
+                    "class_name": class_name,
+                    "confidence": cls_conf if cls_conf is not None else det["confidence"],
+                    "detect_confidence": det.get("detect_confidence", det["confidence"]),
+                    "classify_confidence": cls_conf,
+                    "box_xyxy": det["box_xyxy"],
+                })
+        else:
+            for det in detections:
+                sign_results.append({
+                    "class_id": det["class_id"],
+                    "class_name": det["class_name"],
+                    "confidence": det["confidence"],
+                    "detect_confidence": det.get("detect_confidence", det["confidence"]),
+                    "classify_confidence": det.get("classify_confidence"),
+                    "box_xyxy": det["box_xyxy"],
+                })
+
+        logger.info(f"[{task_id}] Image pipeline complete. Found {len(sign_results)} sign(s).")
 
         payload = {
             "task_id": task_id,
