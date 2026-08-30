@@ -129,9 +129,12 @@ class ModelManager:
     def _cleanup_memory(self) -> None:
         gc.collect()
         if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-            torch.cuda.ipc_collect()
-        logger.debug("Memory garbage collection and CUDA cache empty completed.")
+            try:
+                torch.cuda.empty_cache()
+            except Exception as e:
+                logger.trace(f"CUDA empty cache suppressed: {e}")
+        logger.debug("Memory garbage collection completed.")
+
 
     def is_detector_loaded(self) -> bool:
         return self._detector is not None
@@ -148,6 +151,38 @@ class ModelManager:
         if self._classifier is not None and self._loaded_classifier_path:
             return os.path.basename(self._loaded_classifier_path)
         return None
+
+    def sync_classifier_classes(
+        self,
+        model_name: Optional[str] = None,
+        template: Optional[str] = None,
+    ) -> tuple[bool, str]:
+        target_name = model_name or self.get_loaded_classifier_filename() or config_manager.active_classifier_model or "mobileclip_s2.engine"
+        clean_name = os.path.basename(target_name)
+
+        if self._classifier is not None and (
+            model_name is None or clean_name == self.get_loaded_classifier_filename()
+        ):
+            logger.info(f"Rebuilding text embeddings on active in-memory classifier: {clean_name}")
+            self._classifier.rebuild_text_features(template=template)
+            return True, clean_name
+
+        logger.info(f"Pre-computing and caching text embeddings for classifier: {clean_name}")
+        base_dir = Path(__file__).resolve().parent.parent.parent
+        weights_path = base_dir / "weights" / "classifiers" / clean_name
+        target_weights = str(weights_path) if weights_path.exists() else clean_name
+
+        temp_classifier = SignClassifier(
+            weights_path=target_weights,
+            prompt_template=template,
+        )
+        temp_classifier.rebuild_text_features(template=template)
+        temp_classifier.unload()
+        del temp_classifier
+        self._cleanup_memory()
+
+        return False, clean_name
+
 
     def get_idle_seconds(self) -> float:
         if (self._detector is not None or self._classifier is not None) and self._last_accessed > 0:

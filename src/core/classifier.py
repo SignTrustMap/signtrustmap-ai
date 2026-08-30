@@ -12,7 +12,7 @@ from loguru import logger
 import clip
 import open_clip
 from src.core.config import settings
-from src.core.classes import DEFAULT_CLASSES, get_default_prompts
+from src.core.class_manager import class_manager
 from src.infrastructure.minio_client import download_model_from_minio
 
 
@@ -51,11 +51,13 @@ class SignClassifier:
         self.weights_path = self._resolve_weights_path(weights_path)
         self._is_mobileclip = False
         self._tokenizer = None
+        self._class_map = class_manager.get_classes_map()
+        self._class_ids = sorted(self._class_map.keys())
 
         logger.info(f"Loading SignClassifier on {self.device} ({self.weights_path})")
         self.model, self.preprocess = self._load_model(self.weights_path)
         self.text_features = self._load_or_build_text_features(self.prompt_template)
-        logger.info(f"SignClassifier initialized ({len(DEFAULT_CLASSES)} classes).")
+        logger.info(f"SignClassifier initialized ({len(self._class_ids)} classes).")
 
     def _resolve_device(self, device: Optional[Union[int, str]]) -> str:
         if device is not None:
@@ -172,38 +174,119 @@ class SignClassifier:
         stem = Path(self.weights_path).stem.replace("/", "-")
         return cache_dir / f"text_embeddings_{stem}.pt"
 
+    def _encode_prompts(self, prompts: List[str]) -> torch.Tensor:
+        features_list = []
+        batch_size = 32
+
+        has_text_encoder = hasattr(self.model, "encode_text") and (
+            (self._is_mobileclip and hasattr(self.model, "text"))
+            or (not self._is_mobileclip and hasattr(self.model, "token_embedding"))
+        )
+
+        if has_text_encoder:
+
+            if self._is_mobileclip and self._tokenizer is not None:
+                text_tokens = self._tokenizer(prompts)
+            else:
+                text_tokens = clip.tokenize(prompts)
+
+            with torch.inference_mode():
+                for i in range(0, len(text_tokens), batch_size):
+                    chunk_tokens = text_tokens[i : i + batch_size].to(self.device)
+                    chunk_feats = self.model.encode_text(chunk_tokens)
+                    chunk_feats = chunk_feats / chunk_feats.norm(dim=-1, keepdim=True)
+                    features_list.append(chunk_feats)
+                return torch.cat(features_list, dim=0)
+
+        logger.info("Instantiating temporary text encoder to compute prompt embeddings...")
+        base_dir = Path(__file__).resolve().parent.parent.parent
+        classifiers_dir = base_dir / "weights" / "classifiers"
+
+        if self._is_mobileclip:
+            arch = "MobileCLIP-S2"
+            if "s0" in self.weights_path.lower():
+                arch = "MobileCLIP-S0"
+            elif "s1" in self.weights_path.lower():
+                arch = "MobileCLIP-S1"
+            elif "s2" in self.weights_path.lower():
+                arch = "MobileCLIP-S2"
+            elif "b" in self.weights_path.lower():
+                arch = "MobileCLIP-B"
+
+            stem = Path(self.weights_path).stem
+            local_pt = classifiers_dir / f"{stem}.pt"
+            fallback_pt = classifiers_dir / "mobileclip_s2.pt"
+            pretrained_target = (
+                str(local_pt)
+                if local_pt.is_file()
+                else (str(fallback_pt) if fallback_pt.is_file() else "datacompdr")
+            )
+
+            temp_model, _, _ = open_clip.create_model_and_transforms(
+                arch,
+                pretrained=pretrained_target,
+                device=self.device,
+            )
+            temp_model.eval()
+            tokenizer = open_clip.get_tokenizer(arch)
+            text_tokens = tokenizer(prompts)
+
+            with torch.inference_mode():
+                for i in range(0, len(text_tokens), batch_size):
+                    chunk_tokens = text_tokens[i : i + batch_size].to(self.device)
+                    chunk_feats = temp_model.encode_text(chunk_tokens)
+                    chunk_feats = chunk_feats / chunk_feats.norm(dim=-1, keepdim=True)
+                    features_list.append(chunk_feats)
+
+            del temp_model
+        else:
+            clean_clip_name, clean_file_name = self._normalize_name(self.weights_path)
+            local_clip_pt = classifiers_dir / clean_file_name
+            target_clip = str(local_clip_pt) if local_clip_pt.is_file() else clean_clip_name
+            temp_model, _ = clip.load(target_clip, device=self.device)
+            temp_model.eval()
+            text_tokens = clip.tokenize(prompts)
+
+            with torch.inference_mode():
+                for i in range(0, len(text_tokens), batch_size):
+                    chunk_tokens = text_tokens[i : i + batch_size].to(self.device)
+                    chunk_feats = temp_model.encode_text(chunk_tokens)
+                    chunk_feats = chunk_feats / chunk_feats.norm(dim=-1, keepdim=True)
+                    features_list.append(chunk_feats)
+
+            del temp_model
+
+
+        gc.collect()
+        if torch.cuda.is_available():
+            try:
+                torch.cuda.empty_cache()
+            except Exception:
+                pass
+
+        return torch.cat(features_list, dim=0)
+
     def _load_or_build_text_features(self, prompt_template: str) -> torch.Tensor:
+        self._class_map = class_manager.get_classes_map()
+        self._class_ids = sorted(self._class_map.keys())
+        expected_count = len(self._class_ids)
+
         cache_path = self._get_embedding_cache_path()
 
         if cache_path.exists():
             try:
                 logger.debug(f"Loading text embeddings: {cache_path}")
                 text_features = torch.load(cache_path, map_location=self.device)
-                if isinstance(text_features, torch.Tensor) and text_features.shape[0] == len(DEFAULT_CLASSES):
+                if isinstance(text_features, torch.Tensor) and text_features.shape[0] == expected_count:
                     logger.debug(f"Loaded text embeddings shape: {text_features.shape}")
                     self._prune_text_encoder()
                     return text_features
             except Exception as e:
                 logger.warning(f"Could not load cached text embeddings from {cache_path}: {e}")
 
-        logger.info("Computing text embeddings...")
-        prompts = get_default_prompts(template=prompt_template)
-        if self._is_mobileclip and self._tokenizer is not None:
-            text_tokens = self._tokenizer(prompts)
-        else:
-            text_tokens = clip.tokenize(prompts)
-
-        features_list = []
-        batch_size = 32
-
-        with torch.inference_mode():
-            for i in range(0, len(text_tokens), batch_size):
-                chunk_tokens = text_tokens[i : i + batch_size].to(self.device)
-                chunk_feats = self.model.encode_text(chunk_tokens)
-                chunk_feats = chunk_feats / chunk_feats.norm(dim=-1, keepdim=True)
-                features_list.append(chunk_feats)
-
-            text_features = torch.cat(features_list, dim=0)
+        logger.info(f"Computing text embeddings for {expected_count} classes...")
+        prompts = class_manager.get_prompts(template=prompt_template)
+        text_features = self._encode_prompts(prompts)
 
         try:
             torch.save(text_features.cpu(), cache_path)
@@ -213,6 +296,27 @@ class SignClassifier:
 
         self._prune_text_encoder()
         return text_features.to(self.device)
+
+    def rebuild_text_features(self, template: Optional[str] = None) -> torch.Tensor:
+        active_template = template or self.prompt_template
+        self.prompt_template = active_template
+        self._class_map = class_manager.get_classes_map()
+        self._class_ids = sorted(self._class_map.keys())
+        expected_count = len(self._class_ids)
+
+        logger.info(f"Rebuilding text embeddings for {expected_count} classes (template: '{active_template}')...")
+        prompts = class_manager.get_prompts(template=active_template)
+        text_features = self._encode_prompts(prompts)
+        self.text_features = text_features.to(self.device)
+
+        cache_path = self._get_embedding_cache_path()
+        try:
+            torch.save(self.text_features.cpu(), cache_path)
+            logger.info(f"Updated cached text embeddings at {cache_path}")
+        except Exception as e:
+            logger.error(f"Failed to save text embeddings to {cache_path}: {e}")
+
+        return self.text_features
 
     def _prune_text_encoder(self) -> None:
         try:
@@ -282,9 +386,10 @@ class SignClassifier:
             similarity = (100.0 * image_features @ self.text_features.T).softmax(dim=-1)
             values, indices = similarity[0].topk(1)
 
-        class_id = int(indices[0].item())
+        idx = int(indices[0].item())
         confidence = float(values[0].item())
-        class_name = DEFAULT_CLASSES.get(class_id, f"class_{class_id}")
+        class_id = self._class_ids[idx] if idx < len(self._class_ids) else idx
+        class_name = self._class_map.get(class_id, f"class_{class_id}")
 
         logger.trace(f"Crop classified: {class_name} ({confidence:.4f})")
         return {
@@ -330,9 +435,10 @@ class SignClassifier:
                 values, indices = similarity.topk(1, dim=-1)
 
             for i, global_idx in enumerate(chunk_indices):
-                cls_id = int(indices[i][0].item())
+                idx = int(indices[i][0].item())
                 conf = float(values[i][0].item())
-                name = DEFAULT_CLASSES.get(cls_id, f"class_{cls_id}")
+                cls_id = self._class_ids[idx] if idx < len(self._class_ids) else idx
+                name = self._class_map.get(cls_id, f"class_{cls_id}")
                 results[global_idx] = {
                     "class_id": cls_id,
                     "class_name": name,
@@ -351,3 +457,4 @@ class SignClassifier:
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
         logger.info("SignClassifier unloaded.")
+
