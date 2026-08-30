@@ -2,10 +2,12 @@ import asyncio
 import gc
 import os
 import time
+from pathlib import Path
 from typing import Optional
 import torch
 from loguru import logger
 from src.core.config import settings
+from src.core.config_manager import config_manager
 from src.core.detector import SignDetector
 
 
@@ -19,13 +21,34 @@ class ModelManager:
         self._is_running: bool = False
 
     def get_detector(self, weights_path: Optional[str] = None) -> SignDetector:
-        if self._detector is None or (weights_path and weights_path != self._loaded_weights_path):
-            logger.info(f"Initializing SignDetector with weights: {weights_path or 'default'}...")
-            self._detector = SignDetector(weights_path=weights_path)
-            self._loaded_weights_path = weights_path or settings.FALLBACK_MODEL_PATH
+        target_weights = weights_path or config_manager.get_active_weights_path()
+
+        if self._detector is None or target_weights != self._loaded_weights_path:
+            logger.info(f"Initializing SignDetector with weights: {target_weights}...")
+            self._detector = SignDetector(weights_path=target_weights)
+            self._loaded_weights_path = target_weights
 
         self._last_accessed = time.time()
         return self._detector
+
+    def load_model(self, weights_name: str) -> str:
+        base_dir = Path(__file__).resolve().parent.parent.parent
+        clean_name = os.path.basename(weights_name)
+        weights_path = base_dir / "weights" / clean_name
+
+        if not weights_path.exists():
+            raise FileNotFoundError(f"Model file '{clean_name}' not found in weights directory.")
+
+        if self._detector is not None:
+            self.unload_model()
+
+        logger.info(f"Explicitly loading model '{clean_name}' into memory...")
+        self._detector = SignDetector(weights_path=str(weights_path))
+        self._loaded_weights_path = str(weights_path)
+        self._last_accessed = time.time()
+
+        config_manager.set_active_model(clean_name)
+        return clean_name
 
     def touch(self) -> None:
         self._last_accessed = time.time()
@@ -67,18 +90,19 @@ class ModelManager:
         return 0.0
 
     async def _watchdog_loop(self) -> None:
-        logger.debug(f"Model idle watchdog started (timeout={settings.MODEL_IDLE_TIMEOUT_SECONDS}s).")
+        logger.debug(f"Model idle watchdog started (timeout={config_manager.model_idle_timeout_seconds}s).")
         while self._is_running:
             try:
                 await asyncio.sleep(15)
                 if not self._is_running:
                     break
 
-                if self._detector is not None and settings.MODEL_IDLE_TIMEOUT_SECONDS > 0:
+                timeout = config_manager.model_idle_timeout_seconds
+                if self._detector is not None and timeout > 0:
                     idle_duration = time.time() - self._last_accessed
-                    if idle_duration >= settings.MODEL_IDLE_TIMEOUT_SECONDS:
+                    if idle_duration >= timeout:
                         logger.info(
-                            f"Model has been idle for {idle_duration:.1f}s (threshold: {settings.MODEL_IDLE_TIMEOUT_SECONDS}s). "
+                            f"Model has been idle for {idle_duration:.1f}s (threshold: {timeout}s). "
                             f"Triggering automatic model unload."
                         )
                         self.unload_model()

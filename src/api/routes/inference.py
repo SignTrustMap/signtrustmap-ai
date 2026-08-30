@@ -3,8 +3,10 @@ import uuid
 import shutil
 import tempfile
 from pathlib import Path
+from typing import Optional
 from fastapi import APIRouter, UploadFile, File, Form, BackgroundTasks
 from loguru import logger
+from src.core.config_manager import config_manager
 from src.core.model_manager import model_manager
 from src.pipelines.image_pipeline import run_image_pipeline
 from src.pipelines.video_pipeline import run_video_pipeline
@@ -19,8 +21,8 @@ async def process_image(
     image: UploadFile = File(...),
     task_id: str = Form(...),
     callback_url: str = Form(...),
-    conf: float = Form(0.6),
-    device: int = Form(0),
+    conf: Optional[float] = Form(None),
+    device: Optional[int] = Form(None),
 ):
     logger.info(f"Received image inference request for task ID {task_id}. Image: {image.filename}, Callback: {callback_url}")
     temp_dir = tempfile.gettempdir()
@@ -29,7 +31,10 @@ async def process_image(
     with open(temp_image_path, "wb") as buffer:
         shutil.copyfileobj(image.file, buffer)
 
-    logger.debug(f"Image received and saved. Queueing YOLO background inference task ID: {task_id}")
+    effective_conf = conf if conf is not None else config_manager.default_conf
+    effective_device = device if device is not None else config_manager.default_device
+
+    logger.debug(f"Queueing YOLO background inference task ID: {task_id} (conf={effective_conf}, device={effective_device})")
 
     detector = model_manager.get_detector()
     background_task.add_task(
@@ -38,8 +43,8 @@ async def process_image(
         callback_url=callback_url,
         detector=detector,
         image_path=temp_image_path,
-        conf=conf,
-        device=device,
+        conf=effective_conf,
+        device=effective_device,
     )
 
     return {
@@ -55,8 +60,8 @@ async def process_video(
     video: UploadFile = File(...),
     task_id: str = Form(...),
     callback_url: str = Form(...),
-    conf: float = Form(0.6),
-    device: int = Form(0),
+    conf: Optional[float] = Form(None),
+    device: Optional[int] = Form(None),
 ):
     logger.info(f"Received video inference request for task ID {task_id}. Video: {video.filename}, Callback: {callback_url}")
     temp_dir = tempfile.gettempdir()
@@ -66,7 +71,10 @@ async def process_video(
     with open(temp_video_path, "wb") as buffer:
         shutil.copyfileobj(video.file, buffer)
 
-    logger.debug(f"Video received and saved. Queueing YOLO background inference task ID: {task_id}")
+    effective_conf = conf if conf is not None else config_manager.default_conf
+    effective_device = device if device is not None else config_manager.default_device
+
+    logger.debug(f"Queueing YOLO background video tracking task ID: {task_id} (conf={effective_conf}, device={effective_device})")
 
     base_dir = Path(__file__).resolve().parent.parent.parent.parent
     static_dir = os.path.join(str(base_dir), "static", "extracted_frames")
@@ -80,8 +88,8 @@ async def process_video(
         detector=detector,
         video_path=temp_video_path,
         static_dir=static_dir,
-        conf=conf,
-        device=device,
+        conf=effective_conf,
+        device=effective_device,
     )
 
     return {

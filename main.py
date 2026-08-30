@@ -7,6 +7,7 @@ from src.core.logger import setup_logger
 setup_logger()
 
 from src.core.utils import get_reload_excludes
+from src.core.config_manager import config_manager
 from src.core.model_manager import model_manager
 from fastapi import FastAPI
 import uvicorn
@@ -15,6 +16,7 @@ from src.api.router import api_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    config_manager.load_config()
     model_manager.start_watchdog()
     yield
     model_manager.stop_watchdog()

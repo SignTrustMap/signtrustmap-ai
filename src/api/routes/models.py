@@ -14,6 +14,8 @@ from src.api.schemas import (
     ModelListResponse,
     ModelFileInfo,
     ModelUnloadResponse,
+    ModelLoadRequest,
+    ModelLoadResponse,
 )
 
 router = APIRouter(tags=["Models"])
@@ -97,6 +99,32 @@ async def get_export_task_status(task_id: str):
         "error": task_data.get("error"),
         "duration_seconds": task_data.get("duration_seconds"),
     }
+
+
+@router.post("/load", response_model=ModelLoadResponse)
+async def load_model_endpoint(request: ModelLoadRequest):
+    logger.info(f"Received request to explicitly load model: {request.weights_name}")
+    try:
+        loaded_name = model_manager.load_model(request.weights_name)
+        fmt = os.path.splitext(loaded_name)[1].lstrip(".")
+        return {
+            "status": "LOADED",
+            "loaded_model": loaded_name,
+            "format": fmt,
+            "message": f"Model '{loaded_name}' successfully loaded into memory and set as active model.",
+        }
+    except FileNotFoundError as e:
+        logger.warning(f"Failed to load model: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        )
+    except Exception as e:
+        logger.error(f"Error loading model '{request.weights_name}': {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to load model: {str(e)}",
+        )
 
 
 @router.post("/unload", response_model=ModelUnloadResponse)

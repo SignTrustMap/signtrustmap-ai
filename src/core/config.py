@@ -10,9 +10,9 @@ class Settings(BaseSettings):
     MINIO_SECRET_KEY: Optional[str] = None
     MINIO_BUCKET: str = "best-frames"
     
-    MODEL_S3_KEY: Optional[str] = "models/yolo12n_VTSDB100_v1.0.pt"
+    MODEL_S3_KEY: Optional[str] = "models/yolo26n_vtsdb_mtsd_dfg.engine"
     LOCAL_WEIGHTS_DIR: str = "weights"
-    FALLBACK_MODEL_PATH: str = "weights/yolo12n_VTSDB100_v1.0.pt"
+    FALLBACK_MODEL_PATH: str = "weights/yolo26n_vtsdb_mtsd_dfg.engine"
     HEALTH_CHECK_TIMEOUT: int = 2
     MODEL_IDLE_TIMEOUT_SECONDS: int = 1800
     
