@@ -8,11 +8,11 @@ setup_logger()
 from src.core.utils import get_reload_excludes
 from fastapi import FastAPI
 import uvicorn
-from src.api.endpoints import router
+from src.api.router import api_router
 
 app = FastAPI(title="SignTrustMap AI Processing Service")
 
-app.include_router(router)
+app.include_router(api_router)
 
 if __name__ == "__main__":
     host = os.getenv("HOST", "0.0.0.0")
