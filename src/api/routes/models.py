@@ -14,7 +14,7 @@ from src.api.schemas import (
     ModelFileInfo,
 )
 
-router = APIRouter()
+router = APIRouter(tags=["Models"])
 
 
 def _format_size_human(size_bytes: int) -> str:

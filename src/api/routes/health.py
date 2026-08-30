@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from loguru import logger
 from src.infrastructure.health import check_exiftool, check_minio, check_ffprobe
 
-router = APIRouter()
+router = APIRouter(tags=["Health"])
 
 
 @router.get("/health")

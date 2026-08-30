@@ -12,7 +12,7 @@ from src.pipelines.image_pipeline import run_image_pipeline
 from src.pipelines.video_pipeline import run_video_pipeline
 from src.api.schemas import ImageProcessingResponse, VideoProcessingResponse
 
-router = APIRouter()
+router = APIRouter(tags=["Processing"])
 
 _detector_instance = None
 
