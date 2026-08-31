@@ -42,4 +42,12 @@ if __name__ == "__main__":
     reload = os.getenv("RELOAD", "true").lower() == "true"
     
     excludes = get_reload_excludes()
-    uvicorn.run("main:app", host=host, port=port, reload=reload, log_config=None, reload_excludes=excludes)
+    uvicorn.run(
+        "main:app",
+        host=host,
+        port=port,
+        reload=reload,
+        log_config=None,
+        reload_excludes=excludes,
+        timeout_graceful_shutdown=3,
+    )
