@@ -59,6 +59,11 @@ class ConfigManager:
                 "default_strategy": "least_confidence",
                 "default_aggregation": "avg",
                 "no_detection_score": 0.0,
+                "min_batch_size_detector": 50,
+                "min_batch_size_classifier": 100,
+                "discrepancy_threshold": 0.5,
+                "auto_trigger_training": True,
+                "dataset_store_path": "runs/active_learning/dataset.json",
             },
             "detector": {
                 "active_model": detector_fallback,
