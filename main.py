@@ -10,6 +10,7 @@ from src.core.utils import get_reload_excludes
 from src.core.config_manager import config_manager
 from src.core.model_manager import model_manager
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from src.api.router import api_router
 
@@ -24,6 +25,14 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="SignTrustMap AI Processing Service", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(api_router)
 
