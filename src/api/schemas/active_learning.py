@@ -55,3 +55,65 @@ class StrategyInfoResponse(BaseModel):
     default_strategy: str = Field(..., description="Default scoring strategy configured", examples=["least_confidence"])
     default_aggregation: str = Field(..., description="Default aggregation method configured", examples=["avg"])
     default_top_k: int = Field(..., description="Default top K samples configured for batch scoring", examples=[50])
+
+
+class FeedbackItem(BaseModel):
+    object_name: str = Field(..., description="Object name / path in MinIO storage", examples=["vid-task-111/frame_1.jpg"])
+    box_xyxy: List[float] = Field(..., description="Bounding box coordinates [xmin, ymin, xmax, ymax]", examples=[[120.0, 200.0, 180.0, 260.0]])
+    evaluation: str = Field(..., description="Reviewer evaluation status: TRUE (correct), FALSE (classify error), NOT_GIVEN (detector error / not a sign)", examples=["NOT_GIVEN"])
+    pred_class_id: Optional[int] = Field(None, description="Original predicted class ID", examples=[14])
+    pred_class_name: Optional[str] = Field(None, description="Original predicted class name", examples=["Speed_limit_50"])
+    pred_confidence: Optional[float] = Field(None, description="Original predicted confidence", examples=[0.85])
+    oracle_class_id: Optional[int] = Field(None, description="Aggregated ground truth class ID (for FALSE)", examples=[15])
+    oracle_class_name: Optional[str] = Field(None, description="Aggregated ground truth class name (for FALSE)", examples=["Speed_limit_60"])
+    is_clip: Optional[bool] = Field(False, description="Flag indicating if the classifier was CLIP/Zero-shot")
+
+
+class ALFeedbackRequest(BaseModel):
+    items: List[FeedbackItem] = Field(..., description="List of feedback items from Backend Aggregator")
+    auto_trigger: Optional[bool] = Field(None, description="Whether to check and trigger retrain automatically")
+
+
+class DatasetCountsGroup(BaseModel):
+    pending: int = Field(..., description="Pending samples for training", examples=[10])
+    trained: int = Field(..., description="Trained samples count", examples=[50])
+
+
+class DatasetCounts(BaseModel):
+    detector: DatasetCountsGroup
+    classifier: DatasetCountsGroup
+    clip: DatasetCountsGroup
+    total_pending: int = Field(..., description="Total pending samples", examples=[20])
+    total_trained: int = Field(..., description="Total trained samples", examples=[100])
+    train_history_count: int = Field(..., description="Number of past training events", examples=[3])
+    store_path: str = Field(..., description="Path to persistent JSON dataset file")
+
+
+class ALFeedbackResponse(BaseModel):
+    total_processed: int = Field(..., description="Total items processed", examples=[5])
+    detector_added: int = Field(..., description="Samples categorized to detector hard negatives (NOT_GIVEN)", examples=[2])
+    classifier_added: int = Field(..., description="Samples categorized to classifier corrections (FALSE)", examples=[2])
+    clip_added: int = Field(..., description="Samples categorized to CLIP staging (FALSE with is_clip=true)", examples=[1])
+    correct_count: int = Field(..., description="Samples verified as correct (TRUE)", examples=[0])
+    dataset_counts: DatasetCounts
+    triggered_retrain: List[str] = Field(..., description="List of models where retrain was triggered", examples=[["detector"]])
+
+
+class DatasetStatusResponse(BaseModel):
+    status: str = Field("SUCCESS", description="Operation status")
+    dataset_counts: DatasetCounts
+
+
+class TrainTriggerRequest(BaseModel):
+    target: str = Field("classifier", description="Model target to retrain (detector, classifier, clip)", examples=["classifier"])
+    dry_run: Optional[bool] = Field(False, description="Simulate retrain without moving samples to trained state")
+
+
+class TrainTriggerResponse(BaseModel):
+    status: str = Field(..., description="Retrain trigger status (SUCCESS, SKIPPED, FAILED)", examples=["SUCCESS"])
+    target: str = Field(..., description="Target model retrained", examples=["classifier"])
+    sample_count: int = Field(..., description="Number of samples included in retraining", examples=[100])
+    new_weights: Optional[str] = Field(None, description="Generated updated weights identifier")
+    dry_run: bool = Field(False, description="Whether this was a dry run")
+    message: Optional[str] = Field(None, description="Optional message details")
+    error: Optional[str] = Field(None, description="Error message if failed")

@@ -1,12 +1,20 @@
 from fastapi import APIRouter, HTTPException, status
 from loguru import logger
 from src.core.active_learning.detection_scorer import al_engine
+from src.core.active_learning.store import al_store
+from src.core.active_learning.feedback_processor import feedback_processor
+from src.core.active_learning.retrain import trigger_retrain
 from src.api.schemas.active_learning import (
     SingleDetectionScoreRequest,
     SingleDetectionScoreResponse,
     BatchDetectionScoreRequest,
     BatchDetectionScoreResponse,
     StrategyInfoResponse,
+    ALFeedbackRequest,
+    ALFeedbackResponse,
+    DatasetStatusResponse,
+    TrainTriggerRequest,
+    TrainTriggerResponse,
 )
 
 router = APIRouter(tags=["Active Learning"])
@@ -64,3 +72,61 @@ async def score_batch_detections(request: BatchDetectionScoreRequest):
 async def get_supported_strategies():
     logger.debug("Retrieving supported Active Learning strategies and aggregation methods.")
     return al_engine.get_supported_strategies()
+
+
+@router.post("/feedback", response_model=ALFeedbackResponse)
+async def ingest_active_learning_feedback(request: ALFeedbackRequest):
+    logger.info(f"Received AL feedback batch with {len(request.items)} item(s)")
+    if not request.items:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Feedback items list must not be empty.",
+        )
+    try:
+        items_raw = [item.model_dump() for item in request.items]
+        return feedback_processor.process_feedback_batch(
+            items=items_raw,
+            auto_trigger=request.auto_trigger,
+        )
+    except Exception as e:
+        logger.error(f"Failed to process Active Learning feedback: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Feedback processing failed: {str(e)}",
+        )
+
+
+@router.get("/dataset/status", response_model=DatasetStatusResponse)
+async def get_dataset_status():
+    logger.debug("Retrieving Active Learning dataset status.")
+    try:
+        counts = al_store.get_counts()
+        return {
+            "status": "SUCCESS",
+            "dataset_counts": counts,
+        }
+    except Exception as e:
+        logger.error(f"Failed to fetch dataset status: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Could not retrieve dataset status: {str(e)}",
+        )
+
+
+@router.post("/train/trigger", response_model=TrainTriggerResponse)
+async def trigger_model_retrain(request: TrainTriggerRequest):
+    logger.info(f"Received explicit retraining trigger for target='{request.target}' (dry_run={request.dry_run})")
+    try:
+        result = await trigger_retrain(
+            target=request.target,
+            dry_run=bool(request.dry_run),
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Retraining trigger failed for '{request.target}': {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Retraining execution failed: {str(e)}",
+        )
+
+
