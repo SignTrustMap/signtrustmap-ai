@@ -3,6 +3,7 @@ import tempfile
 import uuid
 from typing import Any, Dict, List, Optional
 from loguru import logger
+from src.core.config import settings
 from src.core.config_manager import config_manager
 from src.core.model_manager import model_manager
 from src.infrastructure.minio_client import minio_client
@@ -53,7 +54,7 @@ class DetectionActiveLearningEngine:
         file_ext = os.path.splitext(object_name)[1] or ".jpg"
         temp_image_path = os.path.join(temp_dir, f"al_score_{uuid.uuid4().hex}{file_ext}")
 
-        success = minio_client.download_file(object_name, temp_image_path)
+        success = minio_client.download_file(settings.MINIO_BUCKET, object_name, temp_image_path)
         if not success or not os.path.exists(temp_image_path):
             logger.error(f"Failed to fetch image '{object_name}' from MinIO storage.")
             raise FileNotFoundError(f"Image '{object_name}' could not be downloaded from MinIO storage.")
@@ -113,7 +114,7 @@ class DetectionActiveLearningEngine:
             temp_image_path = os.path.join(temp_dir, f"al_batch_{uuid.uuid4().hex}{file_ext}")
 
             try:
-                success = minio_client.download_file(object_name, temp_image_path)
+                success = minio_client.download_file(settings.MINIO_BUCKET, object_name, temp_image_path)
                 if not success or not os.path.exists(temp_image_path):
                     logger.warning(f"Batch item [{idx + 1}/{len(object_names)}]: '{object_name}' download failed. Skipping.")
                     continue

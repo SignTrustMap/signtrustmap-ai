@@ -17,7 +17,11 @@ class SignDetector:
                 
                 if not os.path.exists(weights_path):
                     logger.info(f"Detector file {model_filename} not found locally at {weights_path}.")
-                    success = minio_client.download_file(settings.DETECTOR_S3_KEY, weights_path)
+                    success = minio_client.download_file(
+                        settings.MINIO_BUCKET,
+                        settings.DETECTOR_S3_KEY,
+                        weights_path,
+                    )
                     if not success:
                         logger.warning(f"Could not download detector {settings.DETECTOR_S3_KEY} from MinIO. Trying fallback detector path.")
                         weights_path = os.path.join(base_dir, settings.FALLBACK_DETECTOR_PATH)

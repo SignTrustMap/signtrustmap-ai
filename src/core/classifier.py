@@ -84,7 +84,11 @@ class SignClassifier:
                 local_path = classifiers_dir / model_filename
                 if not local_path.exists():
                     logger.info(f"Downloading classifier '{model_filename}' from MinIO...")
-                    success = minio_client.download_file(settings.CLASSIFIER_S3_KEY, str(local_path))
+                    success = minio_client.download_file(
+                        settings.MINIO_BUCKET,
+                        settings.CLASSIFIER_S3_KEY,
+                        str(local_path),
+                    )
                     if not success:
                         logger.warning(f"Failed MinIO download for '{settings.CLASSIFIER_S3_KEY}'. Falling back to local default.")
                         fallback_path = base_dir / (settings.FALLBACK_CLASSIFIER_PATH or "weights/classifiers/mobileclip_s2.engine")
@@ -457,4 +461,3 @@ class SignClassifier:
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
         logger.info("SignClassifier unloaded.")
-

@@ -9,7 +9,11 @@ class Settings(BaseSettings):
     MINIO_ENDPOINT: Optional[str] = None
     MINIO_ACCESS_KEY: Optional[str] = None
     MINIO_SECRET_KEY: Optional[str] = None
-    MINIO_BUCKET: str = "best-frames"
+    MINIO_SECURE: bool = False
+    MINIO_OUTPUT_BUCKET: str = "stm-sign-crops"
+    # Compatibility alias for existing runtime configuration files.
+    MINIO_BUCKET: str = "stm-sign-crops"
+    INTERNAL_API_TOKEN: str = "stm_internal_secret_dev"
     
     DETECTOR_S3_KEY: Optional[str] = "models/detectors/yolo26n_vtsdb_mtsd_dfg.engine"
     CLASSIFIER_S3_KEY: Optional[str] = "models/classifiers/mobileclip_s2.pt"

@@ -1,85 +1,80 @@
 import os
+import shutil
+import tempfile
+
 import cv2
-from loguru import logger
-from src.pipelines.utils import send_callback
+
+from src.infrastructure.minio_client import minio_client
 
 
-def run_image_pipeline(
-    task_id: str,
-    callback_url: str,
+def infer_image(
+    submission_id: str,
     detector,
     image_path: str,
+    source_object_key: str,
     classifier=None,
     conf: float = 0.6,
     device: int = 0,
-):
-    filename = os.path.basename(image_path)
-    logger.info(f"[{task_id}] Executing image inference pipeline for {filename} (conf={conf}, device={device})...")
+) -> dict:
+    """Run image inference and return storage-backed candidate data."""
+    image = cv2.imread(image_path)
+    if image is None:
+        raise ValueError(f"Cannot decode image file: {image_path}")
 
+    image_height, image_width = image.shape[:2]
+    detections = detector.detect(image_path, conf=conf, device=device)
+    classification_results = []
+    if classifier is not None and detections:
+        crops = [classifier.crop_box(image, item["box_xyxy"]) for item in detections]
+        classification_results = classifier.classify_crops_batch(crops)
+
+    signs = []
+    artifact_dir = tempfile.mkdtemp(prefix=f"stm-{submission_id}-")
     try:
-        img = cv2.imread(image_path)
-        img_height, img_width = (None, None)
-        if img is not None:
-            img_height, img_width = img.shape[:2]
+        for index, detection in enumerate(detections):
+            class_result = classification_results[index] if classification_results else {}
+            has_classification = class_result.get("class_id") is not None
+            class_id = class_result.get("class_id") if has_classification else detection["class_id"]
+            class_name = class_result.get("class_name") if has_classification else detection["class_name"]
+            classify_confidence = class_result.get("classify_confidence") if has_classification else None
+            confidence = classify_confidence if classify_confidence is not None else detection["confidence"]
 
-        detections = detector.detect(image_path, conf=conf, device=device)
-        sign_results = []
+            x1, y1, x2, y2 = [int(round(value)) for value in detection["box_xyxy"]]
+            x1, y1 = max(0, x1), max(0, y1)
+            x2 = min(image_width, x2)
+            y2 = min(image_height, y2)
+            crop = image[y1:y2, x1:x2]
+            crop_key = f"candidates/{submission_id}/image-{index}.jpg"
+            crop_path = os.path.join(artifact_dir, f"image-{index}.jpg")
+            if crop.size == 0 or not cv2.imwrite(crop_path, crop):
+                raise RuntimeError(f"Could not create crop for detection {index}")
+            uploaded, crop_storage_key = minio_client.upload_file(
+                crop_path,
+                crop_key,
+                content_type="image/jpeg",
+            )
+            if not uploaded or not crop_storage_key:
+                raise RuntimeError(f"Could not upload crop for detection {index}")
 
-        if classifier is not None and img is not None and len(detections) > 0:
-            crops = [classifier.crop_box(img, det["box_xyxy"]) for det in detections]
-            cls_results = classifier.classify_crops_batch(crops)
-
-            for det, cls_res in zip(detections, cls_results):
-                class_id = cls_res["class_id"] if cls_res["class_id"] is not None else det["class_id"]
-                class_name = cls_res["class_name"] if cls_res["class_id"] is not None else det["class_name"]
-                cls_conf = cls_res.get("classify_confidence")
-                sign_results.append({
-                    "class_id": class_id,
-                    "class_name": class_name,
-                    "confidence": cls_conf if cls_conf is not None else det["confidence"],
-                    "detect_confidence": det.get("detect_confidence", det["confidence"]),
-                    "classify_confidence": cls_conf,
-                    "box_xyxy": det["box_xyxy"],
-                })
-        else:
-            for det in detections:
-                sign_results.append({
-                    "class_id": det["class_id"],
-                    "class_name": det["class_name"],
-                    "confidence": det["confidence"],
-                    "detect_confidence": det.get("detect_confidence", det["confidence"]),
-                    "classify_confidence": det.get("classify_confidence"),
-                    "box_xyxy": det["box_xyxy"],
-                })
-
-        logger.info(f"[{task_id}] Image pipeline complete. Found {len(sign_results)} sign(s).")
-
-        payload = {
-            "task_id": task_id,
-            "status": "COMPLETED",
-            "image_width": img_width,
-            "image_height": img_height,
-            "total_detections": len(sign_results),
-            "result": sign_results,
-            "error": None,
-        }
-        send_callback(callback_url, payload)
-
-    except Exception as e:
-        msg = f"Exception occurred during image detection: {str(e)}"
-        logger.exception(f"[{task_id}] Image pipeline failed: {msg}")
-        payload = {
-            "task_id": task_id,
-            "status": "FAILED",
-            "image_width": None,
-            "image_height": None,
-            "total_detections": 0,
-            "result": None,
-            "error": msg,
-        }
-        send_callback(callback_url, payload)
-
+            signs.append({
+                "track_id": None,
+                "class_id": class_id,
+                "class_name": class_name,
+                "confidence": confidence,
+                "detect_confidence": detection.get("detect_confidence", detection["confidence"]),
+                "classify_confidence": classify_confidence,
+                "box_xyxy": detection["box_xyxy"],
+                "best_frame_key": source_object_key,
+                "sign_crop_key": crop_storage_key,
+                "frame_index": 0,
+                "timestamp_seconds": 0.0,
+            })
     finally:
-        if os.path.exists(image_path):
-            os.remove(image_path)
-            logger.debug(f"[{task_id}] Removed temporary image file: {image_path}")
+        shutil.rmtree(artifact_dir, ignore_errors=True)
+
+    return {
+        "image_width": image_width,
+        "image_height": image_height,
+        "total_frames": 1,
+        "signs": signs,
+    }
