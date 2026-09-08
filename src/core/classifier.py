@@ -7,7 +7,10 @@ import numpy as np
 from PIL import Image
 import torch
 from torchvision import transforms
-import tensorrt as trt
+try:
+    import tensorrt as trt
+except ImportError:
+    trt = None
 from loguru import logger
 import clip
 import open_clip
@@ -18,6 +21,11 @@ from src.infrastructure.minio_client import minio_client
 
 class TensorRTVisualRunner:
     def __init__(self, engine_path: str, device: str = "cuda:0"):
+        if trt is None:
+            raise RuntimeError(
+                "TensorRT is not installed in this environment. "
+                "Cannot load TensorRT engine (.engine). Use a .pt or ONNX model, or install tensorrt."
+            )
         self.device = torch.device(device)
         self.logger = trt.Logger(trt.Logger.WARNING)
         with open(engine_path, "rb") as f:

@@ -31,6 +31,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 ENV PATH="/app/.venv/bin:$PATH"
 ENV RELOAD=false
+ENV YOLO_CONFIG_DIR=/tmp/Ultralytics
 
 EXPOSE 8000
 
