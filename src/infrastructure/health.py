@@ -46,14 +46,24 @@ def check_minio():
     if not (endpoint and access_key and secret_key):
         return {"status": "not_configured", "error": "Environment variables missing"}
     try:
+        endpoint_url = endpoint
+        if not endpoint_url.startswith(("http://", "https://")):
+            scheme = "https" if settings.MINIO_SECURE else "http"
+            endpoint_url = f"{scheme}://{endpoint_url}"
+
         s3 = boto3.client(
             "s3",
-            endpoint_url=endpoint,
+            endpoint_url=endpoint_url,
             aws_access_key_id=access_key,
             aws_secret_access_key=secret_key,
             region_name="us-east-1"
         )
-        s3.list_buckets()
+        bucket = settings.MINIO_OUTPUT_BUCKET or settings.MINIO_BUCKET or "stm-sign-crops"
+        try:
+            s3.head_bucket(Bucket=bucket)
+        except Exception:
+            s3.list_buckets()
         return {"status": "healthy", "error": None}
     except Exception as e:
         return {"status": "unhealthy", "error": str(e)}
+
