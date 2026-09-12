@@ -7,6 +7,23 @@ class SignClassItem(BaseModel):
     class_name: str = Field(..., description="Machine-readable class name", examples=["No_entry"])
     human_readable_name: str = Field(..., description="Human-friendly class name", examples=["No entry"])
     prompt: str = Field(..., description="Formatted text prompt used for zero-shot classification", examples=["a photo of a No entry traffic sign."])
+    category: Optional[str] = Field(None, description="Category code (e.g. PROHIBITORY, WARNING, ...)", examples=["PROHIBITORY"])
+    name_vi: Optional[str] = Field(None, description="Vietnamese name of the sign according to QCVN 41:2019", examples=["Đường cấm / Cấm đi ngược chiều"])
+    name_en: Optional[str] = Field(None, description="English name of the sign", examples=["No entry"])
+    standard_code: Optional[str] = Field(None, description="Traffic standard code (e.g. P.102)", examples=["P.102"])
+
+
+class CategoryItem(BaseModel):
+    id: int = Field(..., description="Unique category ID", examples=[6])
+    code: str = Field(..., description="Category machine code", examples=["PROHIBITORY"])
+    name_vi: str = Field(..., description="Vietnamese category name", examples=["Biển báo cấm"])
+    name_en: str = Field(..., description="English category name", examples=["Prohibitory sign"])
+    description: str = Field(..., description="Category description", examples=["Nhóm biển báo cấm (P) theo QCVN 41:2019"])
+
+
+class CategoryListResponse(BaseModel):
+    total_categories: int = Field(..., description="Total count of sign categories", examples=[7])
+    categories: List[CategoryItem] = Field(default_factory=list, description="List of sign categories")
 
 
 class ClassifierClassesResponse(BaseModel):
@@ -22,10 +39,18 @@ class SignClassDetailResponse(BaseModel):
 class CreateClassRequest(BaseModel):
     class_name: str = Field(..., min_length=1, max_length=100, description="Name of the new traffic sign class", examples=["Custom_Speed_Limit_150"])
     custom_id: Optional[int] = Field(None, ge=0, description="Optional custom integer ID. If not provided, next highest integer ID will be assigned.", examples=[100])
+    category: Optional[str] = Field(None, description="Category code", examples=["PROHIBITORY"])
+    name_vi: Optional[str] = Field(None, description="Vietnamese name", examples=["Đường cấm"])
+    name_en: Optional[str] = Field(None, description="English name", examples=["No entry"])
+    standard_code: Optional[str] = Field(None, description="Standard code", examples=["P.102"])
 
 
 class UpdateClassRequest(BaseModel):
-    class_name: str = Field(..., min_length=1, max_length=100, description="Updated name of the traffic sign class", examples=["Speed_limit_120_kmh"])
+    class_name: Optional[str] = Field(None, min_length=1, max_length=100, description="Updated name of the traffic sign class", examples=["Speed_limit_120_kmh"])
+    category: Optional[str] = Field(None, description="Category code", examples=["PROHIBITORY"])
+    name_vi: Optional[str] = Field(None, description="Vietnamese name", examples=["Đường cấm"])
+    name_en: Optional[str] = Field(None, description="English name", examples=["No entry"])
+    standard_code: Optional[str] = Field(None, description="Standard code", examples=["P.102"])
 
 
 class ClassActionResponse(BaseModel):

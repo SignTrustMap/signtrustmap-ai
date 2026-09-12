@@ -4,6 +4,7 @@ import tempfile
 
 import cv2
 
+from src.core.class_manager import class_manager
 from src.infrastructure.minio_client import minio_client
 
 
@@ -56,6 +57,7 @@ def infer_image(
             if not uploaded or not crop_storage_key:
                 raise RuntimeError(f"Could not upload crop for detection {index}")
 
+            sign_meta = class_manager.get_sign_metadata(class_id)
             signs.append({
                 "track_id": None,
                 "class_id": class_id,
@@ -68,6 +70,10 @@ def infer_image(
                 "sign_crop_key": crop_storage_key,
                 "frame_index": 0,
                 "timestamp_seconds": 0.0,
+                "category": sign_meta.get("category"),
+                "name_vi": sign_meta.get("name_vi"),
+                "name_en": sign_meta.get("name_en"),
+                "standard_code": sign_meta.get("standard_code"),
             })
     finally:
         shutil.rmtree(artifact_dir, ignore_errors=True)

@@ -4,6 +4,7 @@ from loguru import logger
 from src.core.class_manager import class_manager
 from src.core.model_manager import model_manager
 from src.api.schemas.classes import (
+    CategoryListResponse,
     ClassifierClassesResponse,
     SignClassDetailResponse,
     CreateClassRequest,
@@ -22,6 +23,12 @@ async def list_classes(
 ):
     logger.debug(f"Retrieving all classifier classes (template override: {template})")
     return class_manager.get_all_classes_response(template=template)
+
+
+@router.get("/categories", response_model=CategoryListResponse)
+async def list_categories():
+    logger.debug("Retrieving all traffic sign categories")
+    return class_manager.get_all_categories_response()
 
 
 @router.get("/{class_id}", response_model=SignClassDetailResponse)
@@ -47,6 +54,10 @@ async def create_class(request: CreateClassRequest):
         created_item = class_manager.add_class(
             class_name=request.class_name,
             custom_id=request.custom_id,
+            category=request.category,
+            name_vi=request.name_vi,
+            name_en=request.name_en,
+            standard_code=request.standard_code,
         )
         if model_manager.is_classifier_loaded():
             model_manager.sync_classifier_classes()
@@ -76,6 +87,10 @@ async def update_class(class_id: int, request: UpdateClassRequest):
         updated_item = class_manager.update_class(
             class_id=class_id,
             class_name=request.class_name,
+            category=request.category,
+            name_vi=request.name_vi,
+            name_en=request.name_en,
+            standard_code=request.standard_code,
         )
         if model_manager.is_classifier_loaded():
             model_manager.sync_classifier_classes()

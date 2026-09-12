@@ -4,6 +4,7 @@ import tempfile
 
 import cv2
 
+from src.core.class_manager import class_manager
 from src.infrastructure.minio_client import minio_client
 from src.pipelines.frame_extractor import extract_video_frame
 
@@ -67,6 +68,7 @@ def infer_video(
 
             candidate = best["candidate"]
             classify_confidence = best["classify_confidence"]
+            sign_meta = class_manager.get_sign_metadata(best["class_id"])
             signs.append({
                 "track_id": track_id,
                 "class_id": best["class_id"],
@@ -79,6 +81,10 @@ def infer_video(
                 "sign_crop_key": crop_storage_key,
                 "frame_index": candidate["frame_idx"],
                 "timestamp_seconds": candidate["timestamp_seconds"],
+                "category": sign_meta.get("category"),
+                "name_vi": sign_meta.get("name_vi"),
+                "name_en": sign_meta.get("name_en"),
+                "standard_code": sign_meta.get("standard_code"),
             })
     finally:
         shutil.rmtree(artifact_dir, ignore_errors=True)

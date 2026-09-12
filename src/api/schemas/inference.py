@@ -32,6 +32,10 @@ class SubmissionSignResult(BaseModel):
     sign_crop_key: str = Field(..., min_length=1)
     frame_index: int = Field(..., ge=0)
     timestamp_seconds: float = Field(..., ge=0)
+    category: Optional[str] = None
+    name_vi: Optional[str] = None
+    name_en: Optional[str] = None
+    standard_code: Optional[str] = None
 
 
 class SubmissionInferenceResponse(BaseModel):
