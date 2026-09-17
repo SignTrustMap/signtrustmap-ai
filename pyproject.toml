@@ -14,6 +14,7 @@ dependencies = [
     "lapx>=0.9.4",
     "loguru>=0.7.3",
     "manim>=0.19.1",
+    "mapillary-tools>=0.14.7",
     "numpy>=2.2.6",
     "onnx>=1.22.0",
     "onnxscript>=0.7.1",
