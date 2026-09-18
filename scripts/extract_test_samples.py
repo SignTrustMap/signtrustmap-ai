@@ -105,12 +105,6 @@ def parse_args():
         help="Save extracted frame images",
     )
     parser.add_argument(
-        "--save-annotated",
-        action="store_true",
-        default=True,
-        help="Save visualized frames with bounding boxes drawn",
-    )
-    parser.add_argument(
         "--save-clips",
         action="store_true",
         default=True,
@@ -159,51 +153,6 @@ def calculate_frame_score(detections: List[Dict[str, Any]]) -> float:
     base_score = sum(d["confidence"] * math.sqrt(d["box_area"]) for d in detections)
     sign_count_factor = 1.0 + 0.5 * (len(detections) - 1)
     return round(base_score * sign_count_factor, 2)
-
-
-def draw_detections(
-    image: Any,
-    detections: List[Dict[str, Any]],
-    scale_x: float = 1.0,
-    scale_y: float = 1.0,
-) -> Any:
-    annotated = image.copy()
-    font_scale = max(0.6, 0.6 * scale_x)
-    thickness = max(1, int(round(1.5 * scale_x)))
-    box_thickness = max(2, int(round(2 * scale_x)))
-
-    for det in detections:
-        raw_box = det["box_xyxy"]
-        x1 = int(round(raw_box[0] * scale_x))
-        y1 = int(round(raw_box[1] * scale_y))
-        x2 = int(round(raw_box[2] * scale_x))
-        y2 = int(round(raw_box[3] * scale_y))
-        w = x2 - x1
-        h = y2 - y1
-        label = f"{det['class_name']} {det['confidence']:.2f} ({w}x{h})"
-
-        cv2.rectangle(annotated, (x1, y1), (x2, y2), (0, 255, 0), box_thickness)
-        font_face = cv2.FONT_HERSHEY_SIMPLEX
-        (text_w, text_h), baseline = cv2.getTextSize(label, font_face, font_scale, thickness)
-        text_y = max(y1 - 5, text_h + 5)
-        cv2.rectangle(
-            annotated,
-            (x1, text_y - text_h - 4),
-            (x1 + text_w + 4, text_y + baseline),
-            (0, 255, 0),
-            -1,
-        )
-        cv2.putText(
-            annotated,
-            label,
-            (x1 + 2, text_y - 2),
-            font_face,
-            font_scale,
-            (0, 0, 0),
-            thickness,
-            cv2.LINE_AA,
-        )
-    return annotated
 
 
 def get_video_creation_time(video_path: str) -> Optional[datetime]:
@@ -588,17 +537,94 @@ def inject_camm_track(
         return False
 
 
-def crop_video_clip(
+def export_clip_gpx(
+    gpx_points: List[Dict[str, Any]],
+    start_utc: datetime,
+    end_utc: datetime,
+    output_gpx_path: str,
+) -> bool:
+    if not gpx_points:
+        return False
+
+    sub_points = []
+    p_start = interpolate_gps(gpx_points, start_utc)
+    if p_start:
+        sub_points.append(p_start)
+
+    for p in gpx_points:
+        if start_utc < p["time"] < end_utc:
+            sub_points.append({
+                "lat": p["lat"],
+                "lon": p["lon"],
+                "ele": p["ele"],
+                "speed_mps": p["speed"],
+                "speed_kmh": p["speed"] * 3.6,
+                "heading": 0.0,
+                "time_utc": p["time"],
+            })
+
+    p_end = interpolate_gps(gpx_points, end_utc)
+    if p_end:
+        sub_points.append(p_end)
+
+    if not sub_points:
+        return False
+
+    root = ET.Element("gpx", {
+        "version": "1.1",
+        "creator": "SignTrustMap",
+        "xmlns": "http://www.topografix.com/GPX/1/1",
+    })
+    trk = ET.SubElement(root, "trk")
+    trkseg = ET.SubElement(trk, "trkseg")
+
+    for pt in sub_points:
+        trkpt = ET.SubElement(trkseg, "trkpt", {
+            "lat": f"{pt['lat']:.7f}",
+            "lon": f"{pt['lon']:.7f}",
+        })
+        if pt.get("ele") is not None:
+            ele_elem = ET.SubElement(trkpt, "ele")
+            ele_elem.text = f"{pt['ele']:.2f}"
+        if pt.get("time_utc") is not None:
+            time_elem = ET.SubElement(trkpt, "time")
+            time_elem.text = pt["time_utc"].strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+    tree = ET.ElementTree(root)
+    ET.indent(tree, space="  ")
+    tree.write(output_gpx_path, encoding="utf-8", xml_declaration=True)
+    return True
+
+
+def extract_video_sample_variants(
     video_path: str,
     center_time: float,
     duration: float,
     lead_ratio: float,
-    output_clip_path: str,
+    f_idx: int,
+    camm_dir: str,
+    iso_dir: str,
+    no_meta_dir: str,
     scale: Optional[str] = None,
     gpx_points: Optional[List[Dict[str, Any]]] = None,
     video_creation_time: Optional[datetime] = None,
 ) -> Optional[Dict[str, Any]]:
     start_time = max(0.0, center_time - duration * lead_ratio)
+    end_time = start_time + duration
+    clip_filename = f"clip_{f_idx:06d}.mp4"
+    gpx_filename = f"clip_{f_idx:06d}.gpx"
+
+    no_meta_clip_path = os.path.join(no_meta_dir, clip_filename)
+    iso_clip_path = os.path.join(iso_dir, clip_filename)
+    camm_clip_path = os.path.join(camm_dir, clip_filename)
+    gpx_clip_path = os.path.join(no_meta_dir, gpx_filename)
+
+    start_utc = None
+    end_utc = None
+    if video_creation_time:
+        start_utc = video_creation_time + timedelta(seconds=start_time)
+        end_utc = video_creation_time + timedelta(seconds=end_time)
+
     cmd = [
         "ffmpeg",
         "-y",
@@ -608,57 +634,86 @@ def crop_video_clip(
         f"{duration:.3f}",
         "-i",
         video_path,
+        "-map_metadata",
+        "-1",
     ]
-
-    iso_location = None
-    start_utc = None
-    if video_creation_time and gpx_points:
-        start_utc = video_creation_time + timedelta(seconds=start_time)
-        res_center = interpolate_gps(gpx_points, video_creation_time + timedelta(seconds=center_time))
-        if res_center:
-            ele_val = res_center["ele"] if res_center.get("ele") is not None else 0.0
-            iso_location = f"{res_center['lat']:+.6f}{res_center['lon']:+.6f}{ele_val:+.1f}/"
-
-    if iso_location:
-        cmd.extend(["-metadata", f"location={iso_location}"])
-    if start_utc:
-        cmd.extend(["-metadata", f"creation_time={start_utc.strftime('%Y-%m-%dT%H:%M:%S.%fZ')}"])
-
     if scale and scale.lower() != "native":
         cmd.extend([
-            "-vf", f"scale={scale}",
+            "-vf", f"scale={scale}:flags=lanczos",
             "-c:v", "libx264",
             "-preset", "fast",
             "-crf", "20",
             "-an",
-            output_clip_path,
+            no_meta_clip_path,
         ])
     else:
         cmd.extend([
             "-c:v", "copy",
             "-an",
-            output_clip_path,
+            no_meta_clip_path,
         ])
     res = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
     if res.returncode != 0:
-        logger.error(f"FFmpeg failed to crop clip {output_clip_path}: {res.stderr[:200]}")
+        logger.error(f"FFmpeg failed to extract base clip {no_meta_clip_path}: {res.stderr[:200]}")
         return None
+
+    gpx_exported = False
+    if gpx_points and start_utc and end_utc:
+        gpx_exported = export_clip_gpx(gpx_points, start_utc, end_utc, gpx_clip_path)
+
+    iso_location = None
+    if gpx_points and start_utc:
+        res_start = interpolate_gps(gpx_points, start_utc)
+        if res_start:
+            ele_val = res_start["ele"] if res_start.get("ele") is not None else 0.0
+            iso_location = f"{res_start['lat']:+.6f}{res_start['lon']:+.6f}{ele_val:+.1f}/"
+
+    cmd_iso = [
+        "ffmpeg",
+        "-y",
+        "-i",
+        no_meta_clip_path,
+    ]
+    if iso_location:
+        cmd_iso.extend(["-metadata", f"location={iso_location}"])
+    if start_utc:
+        cmd_iso.extend(["-metadata", f"creation_time={start_utc.strftime('%Y-%m-%dT%H:%M:%S.%fZ')}"])
+    cmd_iso.extend(["-c", "copy", iso_clip_path])
+    res_iso = subprocess.run(cmd_iso, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+    if res_iso.returncode != 0:
+        logger.error(f"FFmpeg failed to create ISO 6709 clip {iso_clip_path}: {res_iso.stderr[:200]}")
+
+    if start_utc:
+        cmd_camm = [
+            "ffmpeg",
+            "-y",
+            "-i",
+            no_meta_clip_path,
+            "-metadata",
+            f"creation_time={start_utc.strftime('%Y-%m-%dT%H:%M:%S.%fZ')}",
+            "-c",
+            "copy",
+            camm_clip_path,
+        ]
+        subprocess.run(cmd_camm, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+    else:
+        shutil.copyfile(no_meta_clip_path, camm_clip_path)
 
     camm_injected = False
     if gpx_points and start_utc:
         camm_injected = inject_camm_track(
-            clip_path=output_clip_path,
+            clip_path=camm_clip_path,
             gpx_points=gpx_points,
             start_utc=start_utc,
             duration=duration,
         )
 
     return {
-        "clip_file": os.path.basename(output_clip_path),
         "start_sec": round(start_time, 3),
         "duration_sec": round(duration, 3),
         "camm_track": camm_injected,
-        "location_tag": iso_location,
+        "iso_location": iso_location,
+        "gpx_file": gpx_filename if gpx_exported else None,
     }
 
 
@@ -772,10 +827,17 @@ def scan_and_evaluate(args, video_path: str, total_frames: int, fps: float) -> L
 
 def main():
     args = parse_args()
-    frames_dir = os.path.join(args.output_dir, "frames")
-    clips_dir = os.path.join(args.output_dir, "clips")
-    os.makedirs(frames_dir, exist_ok=True)
-    os.makedirs(clips_dir, exist_ok=True)
+    images_with_meta_dir = os.path.join(args.output_dir, "images_with_metadata")
+    images_no_meta_dir = os.path.join(args.output_dir, "images_without_metadata")
+    videos_camm_dir = os.path.join(args.output_dir, "videos_with_camm")
+    videos_iso_dir = os.path.join(args.output_dir, "videos_with_iso6709")
+    videos_no_meta_dir = os.path.join(args.output_dir, "videos_without_metadata")
+
+    os.makedirs(images_with_meta_dir, exist_ok=True)
+    os.makedirs(images_no_meta_dir, exist_ok=True)
+    os.makedirs(videos_camm_dir, exist_ok=True)
+    os.makedirs(videos_iso_dir, exist_ok=True)
+    os.makedirs(videos_no_meta_dir, exist_ok=True)
 
     orig_meta_w = 0
     orig_meta_h = 0
@@ -852,8 +914,7 @@ def main():
         )
         gps_info = interpolate_gps(gpx_points, target_utc) if (gpx_points and target_utc) else None
 
-        raw_name = None
-        annotated_name = None
+        images_info = {}
 
         if args.save_frames and cap is not None:
             cap.set(cv2.CAP_PROP_POS_FRAMES, f_idx)
@@ -873,52 +934,59 @@ def main():
 
                 intrinsics = compute_camera_intrinsics(cur_w, cur_h, args.hfov)
 
-                raw_name = f"frame_{f_idx:06d}.jpg"
-                raw_path = os.path.join(frames_dir, raw_name)
-                cv2.imwrite(raw_path, frame, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
+                img_name = f"frame_{f_idx:06d}.jpg"
+                no_meta_path = os.path.join(images_no_meta_dir, img_name)
+                with_meta_path = os.path.join(images_with_meta_dir, img_name)
+
+                cv2.imwrite(no_meta_path, frame, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
+                shutil.copyfile(no_meta_path, with_meta_path)
                 if gps_info and args.embed_metadata:
-                    embed_image_exif(raw_path, gps_info, intrinsics)
+                    embed_image_exif(with_meta_path, gps_info, intrinsics)
 
-                if args.save_annotated:
-                    scale_x = cur_w / orig_meta_w if orig_meta_w > 0 else 1.0
-                    scale_y = cur_h / orig_meta_h if orig_meta_h > 0 else 1.0
-                    annotated_frame = draw_detections(frame, item.get("detections", []), scale_x, scale_y)
-                    annotated_name = f"annotated_{f_idx:06d}.jpg"
-                    annotated_path = os.path.join(frames_dir, annotated_name)
-                    cv2.imwrite(annotated_path, annotated_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
-                    if gps_info and args.embed_metadata:
-                        embed_image_exif(annotated_path, gps_info, intrinsics)
-                    del annotated_frame
-
+                images_info = {
+                    "with_metadata": f"images_with_metadata/{img_name}",
+                    "without_metadata": f"images_without_metadata/{img_name}",
+                }
                 del frame
             else:
                 logger.error(f"Failed to read frame {f_idx} for extraction.")
         else:
             intrinsics = compute_camera_intrinsics(orig_meta_w, orig_meta_h, args.hfov)
 
-        clip_info = None
+        videos_info = {}
+        clip_meta = None
         if args.save_clips:
             clip_name = f"clip_{f_idx:06d}.mp4"
-            clip_path = os.path.join(clips_dir, clip_name)
-            clip_info = crop_video_clip(
+            clip_meta = extract_video_sample_variants(
                 video_path=video_path,
                 center_time=t_sec,
                 duration=args.clip_duration,
                 lead_ratio=args.clip_lead_ratio,
-                output_clip_path=clip_path,
+                f_idx=f_idx,
+                camm_dir=videos_camm_dir,
+                iso_dir=videos_iso_dir,
+                no_meta_dir=videos_no_meta_dir,
                 scale=args.scale,
                 gpx_points=gpx_points,
                 video_creation_time=video_creation_time,
             )
+            if clip_meta:
+                videos_info = {
+                    "with_camm": f"videos_with_camm/{clip_name}",
+                    "with_iso6709": f"videos_with_iso6709/{clip_name}",
+                    "without_metadata": f"videos_without_metadata/{clip_name}",
+                }
+                if clip_meta.get("gpx_file"):
+                    videos_info["gpx"] = f"videos_without_metadata/{clip_meta['gpx_file']}"
 
         record: Dict[str, Any] = {
             "frame_idx": f_idx,
             "timestamp_sec": t_sec,
             "score": item.get("score"),
             "sign_count": item.get("sign_count"),
-            "raw_frame_file": raw_name,
-            "annotated_frame_file": annotated_name,
-            "clip": clip_info,
+            "images": images_info,
+            "videos": videos_info,
+            "clip_info": clip_meta,
             "detections": item.get("detections", []),
         }
 
