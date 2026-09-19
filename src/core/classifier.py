@@ -395,7 +395,8 @@ class SignClassifier:
         with torch.inference_mode():
             image_features = self.model.encode_image(img_tensor)
             image_features = image_features / image_features.norm(dim=-1, keepdim=True)
-            similarity = (100.0 * image_features @ self.text_features.T).softmax(dim=-1)
+            text_feats = self.text_features.to(device=image_features.device, dtype=image_features.dtype)
+            similarity = (100.0 * image_features @ text_feats.T).softmax(dim=-1)
             values, indices = similarity[0].topk(1)
 
         idx = int(indices[0].item())
@@ -443,7 +444,8 @@ class SignClassifier:
             with torch.inference_mode():
                 image_features = self.model.encode_image(batch_tensor)
                 image_features = image_features / image_features.norm(dim=-1, keepdim=True)
-                similarity = (100.0 * image_features @ self.text_features.T).softmax(dim=-1)
+                text_feats = self.text_features.to(device=image_features.device, dtype=image_features.dtype)
+                similarity = (100.0 * image_features @ text_feats.T).softmax(dim=-1)
                 values, indices = similarity.topk(1, dim=-1)
 
             for i, global_idx in enumerate(chunk_indices):
