@@ -55,6 +55,8 @@ def try_download_wikimedia(std_code: str, dest_path: Path) -> bool:
         f"Vietnam_road_sign_{clean_code.upper()}.svg",
         f"Vietnam_road_sign_{clean_code.lower()}.svg",
     ]
+    if clean_code == "P124a":
+        candidates.insert(0, "Vietnam_road_sign_P124a1.svg")
     if "-" in clean_code:
         # e.g. P127-40 -> Vietnam_road_sign_P127-40.svg or Vietnam_road_sign_P127.svg
         candidates.append(f"Vietnam_road_sign_{clean_code}.svg")
@@ -91,8 +93,8 @@ def render_vector_badge(
     draw = ImageDraw.Draw(img)
 
     # 1. Speed Limit Signs: Red circular border, white inside, bold speed number
-    speed_match = re.search(r"\b(\d{2,3})\b", sign_code)
-    if "SPEED_LIMIT" in sign_code and speed_match:
+    speed_match = re.search(r"(\d{2,3})", sign_code)
+    if ("SPEED_LIMIT" in sign_code or category == "SPEED_LIMIT") and speed_match:
         val = speed_match.group(1)
         draw.ellipse([6, 6, 122, 122], fill="#FFFFFF", outline="#DC2626", width=12)
         font = ImageFont.truetype(FONT_PATH, 44 if len(val) == 2 else 36)
