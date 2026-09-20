@@ -65,7 +65,8 @@ class SignClassifier:
         logger.info(f"Loading SignClassifier on {self.device} ({self.weights_path})")
         self.model, self.preprocess = self._load_model(self.weights_path)
         self.text_features = self._load_or_build_text_features(self.prompt_template)
-        logger.info(f"SignClassifier initialized ({len(self._class_ids)} classes).")
+        self.prototypes: torch.Tensor = self._load_or_build_prototypes()
+        logger.info(f"SignClassifier initialized ({len(self._class_ids)} classes, prototypes shape={self.prototypes.shape}).")
 
     def _resolve_device(self, device: Optional[Union[int, str]]) -> str:
         if device is not None:
@@ -185,6 +186,38 @@ class SignClassifier:
         cache_dir.mkdir(parents=True, exist_ok=True)
         stem = Path(self.weights_path).stem.replace("/", "-")
         return cache_dir / f"text_embeddings_{stem}.pt"
+
+    def _get_prototype_cache_path(self) -> Path:
+        base_dir = Path(__file__).resolve().parent.parent.parent
+        cache_dir = base_dir / "weights" / "classifiers"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        return cache_dir / "protofuse_prototypes_100.pt"
+
+    def _load_or_build_prototypes(self) -> torch.Tensor:
+        cache_path = self._get_prototype_cache_path()
+        if cache_path.exists():
+            try:
+                logger.info(f"Loading ProtoFuse prototypes from {cache_path}")
+                proto = torch.load(cache_path, map_location=self.device)
+                if isinstance(proto, torch.Tensor) and proto.shape[0] == len(self._class_ids):
+                    proto = proto / proto.norm(dim=-1, keepdim=True)
+                    return proto.to(device=self.device, dtype=torch.float32)
+                logger.warning(f"Cached prototypes shape {proto.shape} does not match {len(self._class_ids)} classes.")
+            except Exception as e:
+                logger.warning(f"Failed to load ProtoFuse prototypes from {cache_path}: {e}")
+        logger.info("Initializing prototypes from text embeddings baseline.")
+        return self.text_features.clone()
+
+    def rebuild_prototypes(self, prototypes_tensor: torch.Tensor) -> torch.Tensor:
+        cache_path = self._get_prototype_cache_path()
+        normed = prototypes_tensor / prototypes_tensor.norm(dim=-1, keepdim=True)
+        self.prototypes = normed.to(device=self.device, dtype=torch.float32)
+        try:
+            torch.save(self.prototypes.cpu(), cache_path)
+            logger.info(f"Updated and saved ProtoFuse prototypes to {cache_path}")
+        except Exception as e:
+            logger.error(f"Failed to persist ProtoFuse prototypes to {cache_path}: {e}")
+        return self.prototypes
 
     def _encode_prompts(self, prompts: List[str]) -> torch.Tensor:
         features_list = []
@@ -395,8 +428,8 @@ class SignClassifier:
         with torch.inference_mode():
             image_features = self.model.encode_image(img_tensor)
             image_features = image_features / image_features.norm(dim=-1, keepdim=True)
-            text_feats = self.text_features.to(device=image_features.device, dtype=image_features.dtype)
-            similarity = (100.0 * image_features @ text_feats.T).softmax(dim=-1)
+            ref_feats = self.prototypes.to(device=image_features.device, dtype=image_features.dtype)
+            similarity = (100.0 * image_features @ ref_feats.T).softmax(dim=-1)
             values, indices = similarity[0].topk(1)
 
         idx = int(indices[0].item())
@@ -444,8 +477,8 @@ class SignClassifier:
             with torch.inference_mode():
                 image_features = self.model.encode_image(batch_tensor)
                 image_features = image_features / image_features.norm(dim=-1, keepdim=True)
-                text_feats = self.text_features.to(device=image_features.device, dtype=image_features.dtype)
-                similarity = (100.0 * image_features @ text_feats.T).softmax(dim=-1)
+                ref_feats = self.prototypes.to(device=image_features.device, dtype=image_features.dtype)
+                similarity = (100.0 * image_features @ ref_feats.T).softmax(dim=-1)
                 values, indices = similarity.topk(1, dim=-1)
 
             for i, global_idx in enumerate(chunk_indices):
@@ -467,6 +500,8 @@ class SignClassifier:
             del self.model
         if hasattr(self, "text_features"):
             del self.text_features
+        if hasattr(self, "prototypes"):
+            del self.prototypes
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
