@@ -56,7 +56,7 @@ class ConfigManager:
         return {
             "active_learning": {
                 "default_top_k": 50,
-                "default_strategy": "least_confidence",
+                "default_strategy": "r3_cec",
                 "default_aggregation": "avg",
                 "no_detection_score": 0.0,
                 "min_batch_size_detector": 50,
@@ -64,6 +64,32 @@ class ConfigManager:
                 "discrepancy_threshold": 0.5,
                 "auto_trigger_training": True,
                 "dataset_store_path": "runs/active_learning/dataset.json",
+                "r3_cec": {
+                    "k_neighbors": 5,
+                    "temperature": 0.5,
+                    "query_budget": 16,
+                    "apply_calibration": True,
+                    "random_state": 42,
+                },
+                "least_confidence": {
+                    "aggregation_method": "avg",
+                    "no_detection_score": 0.0,
+                },
+            },
+            "protofuse": {
+                "fusion_weight_alpha": 0.5,
+                "prompt_template": settings.CLASSIFIER_PROMPT_TEMPLATE or "a photo of a {} traffic sign.",
+                "normalize_embeddings": True,
+                "prototypes_cache_file": "weights/classifiers/protofuse_prototypes_100.pt",
+            },
+            "few_shot_support": {
+                "total_shots_per_class": 16,
+                "num_anchors": 4,
+                "num_medoids": 12,
+                "min_crop_resolution": 20,
+                "min_sharpness_laplacian": 15.0,
+                "replacement_policy": "diversity_kmeans",
+                "preserve_pinned_shots": True,
             },
             "detector": {
                 "active_model": detector_fallback,

@@ -130,3 +130,44 @@ async def trigger_model_retrain(request: TrainTriggerRequest):
         )
 
 
+@router.post("/prototypes/rebuild")
+async def rebuild_protofuse_prototypes(
+    x_internal_token: Optional[str] = Header(None, alias="X-Internal-Token"),
+):
+    """
+    Recomputes ProtoFuse prototypes from the current support cache / database
+    and hot-reloads the active classifier prototypes in memory without downtime.
+    """
+    from src.core.config import settings
+    from src.core.model_manager import model_manager
+
+    if settings.INTERNAL_API_TOKEN and x_internal_token != settings.INTERNAL_API_TOKEN:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing X-Internal-Token header",
+        )
+
+    logger.info("Received request to rebuild ProtoFuse prototypes...")
+    try:
+        classifier = model_manager.get_classifier()
+        if classifier is None:
+            raise RuntimeError("Classifier model is not loaded in model_manager.")
+
+        # Re-load or build prototypes and update RAM
+        reloaded_proto = classifier._load_or_build_prototypes()
+        classifier.rebuild_prototypes(reloaded_proto)
+
+        return {
+            "status": "SUCCESS",
+            "message": "ProtoFuse prototypes successfully rebuilt and hot-reloaded into RAM.",
+            "prototypes_shape": list(classifier.prototypes.shape),
+        }
+    except Exception as e:
+        logger.error(f"ProtoFuse rebuild failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"ProtoFuse rebuild failed: {str(e)}",
+        )
+
+
+
