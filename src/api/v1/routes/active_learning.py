@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException, status
+from typing import Optional
+from fastapi import APIRouter, Header, HTTPException, status
 from loguru import logger
 from src.core.active_learning.detection_scorer import al_engine
 from src.core.active_learning.store import al_store
