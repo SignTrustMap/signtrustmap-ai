@@ -4,7 +4,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 from loguru import logger
 from src.infrastructure.system_metrics import metrics_collector
-from src.infrastructure.health import check_cuda, check_tensorrt, check_minio
+from src.infrastructure.health import get_health_status
 from src.api.schemas.system import SystemMetricsResponse, HealthResponse
 
 router = APIRouter(tags=["System"])
@@ -13,18 +13,7 @@ router = APIRouter(tags=["System"])
 @router.get("/health", response_model=HealthResponse)
 async def health_check():
     logger.debug("Executing system and dependency health check.")
-    dependencies = {
-        "cuda": check_cuda(),
-        "tensorrt": check_tensorrt(),
-        "minio": check_minio(),
-    }
-
-    overall_status = "unhealthy" if any(d.get("status") == "unhealthy" for d in dependencies.values()) else "healthy"
-
-    return {
-        "status": overall_status,
-        "dependencies": dependencies,
-    }
+    return await asyncio.to_thread(get_health_status)
 
 
 @router.get("/metrics", response_model=SystemMetricsResponse)
