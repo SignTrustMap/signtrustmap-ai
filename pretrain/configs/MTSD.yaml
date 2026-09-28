@@ -99,8 +99,8 @@ names:
   92: regulatory--bicycles-only--g3  # blacklist
   93: regulatory--buses-only--g1
   94: regulatory--detour-left--g1
-  95: regulatory--do-not-block-intersection--g1  # blacklist
-  96: regulatory--do-not-stop-on-tracks--g1  # blacklist
+  95: regulatory--do-not-block-intersection--g1
+  96: regulatory--do-not-stop-on-tracks--g1
   97: regulatory--dual-lanes-go-straight-on-left--g1
   98: regulatory--dual-lanes-go-straight-on-right--g1
   99: regulatory--dual-lanes-turn-left-no-u-turn--g1
@@ -195,9 +195,9 @@ names:
   188: regulatory--no-parking--g1
   189: regulatory--no-parking--g2
   190: regulatory--no-parking--g5
-  191: regulatory--no-parking-or-no-stopping--g1  # blacklist
-  192: regulatory--no-parking-or-no-stopping--g2  # blacklist
-  193: regulatory--no-parking-or-no-stopping--g3  # blacklist
+  191: regulatory--no-parking-or-no-stopping--g1
+  192: regulatory--no-parking-or-no-stopping--g2
+  193: regulatory--no-parking-or-no-stopping--g3
   194: regulatory--no-pedestrians--g1
   195: regulatory--no-pedestrians--g2
   196: regulatory--no-pedestrians--g3
@@ -207,15 +207,15 @@ names:
   200: regulatory--no-right-turn--g3
   201: regulatory--no-stopping--g15
   202: regulatory--no-stopping--g2  # blacklist
-  203: regulatory--no-stopping--g4  # blacklist
+  203: regulatory--no-stopping--g4
   204: regulatory--no-stopping--g5
   205: regulatory--no-stopping--g8
   206: regulatory--no-straight-through--g1
   207: regulatory--no-straight-through--g2
-  208: regulatory--no-turn-on-red--g1  # blacklist
-  209: regulatory--no-turn-on-red--g2  # blacklist
-  210: regulatory--no-turn-on-red--g3  # blacklist
-  211: regulatory--no-turns--g1  # blacklist
+  208: regulatory--no-turn-on-red--g1
+  209: regulatory--no-turn-on-red--g2
+  210: regulatory--no-turn-on-red--g3
+  211: regulatory--no-turns--g1
   212: regulatory--no-u-turn--g1
   213: regulatory--no-u-turn--g2
   214: regulatory--no-u-turn--g3
@@ -230,15 +230,15 @@ names:
   223: regulatory--parking-restrictions--g2
   224: regulatory--pass-on-either-side--g1
   225: regulatory--pass-on-either-side--g2
-  226: regulatory--passing-lane-ahead--g1  # blacklist
+  226: regulatory--passing-lane-ahead--g1
   227: regulatory--pedestrians-only--g1
   228: regulatory--pedestrians-only--g2
   229: regulatory--priority-over-oncoming-vehicles--g1
   230: regulatory--priority-road--g4
-  231: regulatory--radar-enforced--g1  # blacklist
+  231: regulatory--radar-enforced--g1
   232: regulatory--reversible-lanes--g2
   233: regulatory--road-closed--g1
-  234: regulatory--road-closed--g2  # blacklist
+  234: regulatory--road-closed--g2
   235: regulatory--road-closed-to-vehicles--g1
   236: regulatory--road-closed-to-vehicles--g3
   237: regulatory--roundabout--g1
@@ -251,7 +251,7 @@ names:
   244: regulatory--stop-here-on-red-or-flashing-light--g1
   245: regulatory--stop-here-on-red-or-flashing-light--g2
   246: regulatory--stop-signals--g1
-  247: regulatory--text-four-lines--g1  # blacklist
+  247: regulatory--text-four-lines--g1
   248: regulatory--triple-lanes-turn-left-center-lane--g1
   249: regulatory--truck-speed-limit-60--g1
   250: regulatory--turn-left--g1
@@ -266,9 +266,9 @@ names:
   259: regulatory--turning-vehicles-yield-to-pedestrians--g1
   260: regulatory--u-turn--g1
   261: regulatory--weight-limit--g1
-  262: regulatory--weight-limit-with-trucks--g1  # blacklist
+  262: regulatory--weight-limit-with-trucks--g1
   263: regulatory--width-limit--g1
-  264: regulatory--wrong-way--g1  # blacklist
+  264: regulatory--wrong-way--g1
   265: regulatory--yield--g1
   266: warning--accidental-area-unsure--g2
   267: warning--added-lane-right--g1
