@@ -121,13 +121,13 @@ def prepare_yolo_dataset(target_dir):
     print(f"Extracted {len(categories)} categories.")
 
     blacklist_names = {
-        "III-120-1", "III-107.1-1", "III-107.1-2", "III-107.2-1", "III-107.2-2",
-        "III-107-1", "III-107-2", "III-120", "III-120.1", "III-123", "III-124",
-        "III-202-5", "III-203-2", "III-206-1", "IV-3-4", "IV-3-5", "IV-5", "IV-12",
-        "IV-12.1", "IV-13.1-2", "IV-13.1-3", "IV-13.1-4", "IV-13-1", "IV-13-2",
-        "IV-13-3", "IV-13-5", "IV-13-4", "IV-13-6", "IV-16", "IV-17", "IV-20-1",
-        "VI-2.1", "VI-3.1-1", "VI-3.1-2", "VI-3-1", "VI-3-2", "VI-8", "X-1.1",
-        "X-1.2", "X-6-3"
+        "I-38", "I-39-1", "I-39-2", "I-39-3", "II-39", "III-120", "III-120.1",
+        "III-123", "III-124", "III-14", "III-14.1", "III-15", "III-202-5",
+        "III-203-2", "III-206-1", "III-27", "III-30-30", "III-64", "III-68",
+        "III-84", "III-84-1", "III-85.1", "III-86-1", "III-86-2", "III-87",
+        "III-90.1", "III-90.2", "III-91", "IV-1", "IV-1.1", "IV-11", "IV-12",
+        "IV-12.1", "IV-16", "IV-20-1", "IV-3-4", "IV-3-5", "X-1.1", "X-1.2",
+        "X-6-3"
     }
 
     def convert_split(json_file_path, split_name):

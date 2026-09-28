@@ -92,23 +92,23 @@ names:
   77: II-6
   78: II-7
   79: II-7.1
-  80: II-8  # blacklist
-  81: III-1  # blacklist
-  82: III-10  # blacklist
-  83: III-105  # blacklist
-  84: III-105.1  # blacklist
-  85: III-105.3  # blacklist
-  86: III-107-1  # blacklist
-  87: III-107-2  # blacklist
-  88: III-107.1-1  # blacklist
-  89: III-107.1-2  # blacklist
-  90: III-107.2-1  # blacklist
-  91: III-107.2-2  # blacklist
-  92: III-112  # blacklist
-  93: III-113  # blacklist
+  80: II-8
+  81: III-1
+  82: III-10
+  83: III-105
+  84: III-105.1
+  85: III-105.3
+  86: III-107-1
+  87: III-107-2
+  88: III-107.1-1
+  89: III-107.1-2
+  90: III-107.2-1
+  91: III-107.2-2
+  92: III-112
+  93: III-113
   94: III-12
   95: III-120  # blacklist
-  96: III-120-1  # blacklist
+  96: III-120-1
   97: III-120.1  # blacklist
   98: III-123  # blacklist
   99: III-124  # blacklist
@@ -120,41 +120,41 @@ names:
   105: III-18-50
   106: III-18-60
   107: III-18-70
-  108: III-2  # blacklist
+  108: III-2
   109: III-202-5  # blacklist
   110: III-203-2  # blacklist
   111: III-206-1  # blacklist
-  112: III-21  # blacklist
+  112: III-21
   113: III-23
   114: III-25
   115: III-25.1
   116: III-27  # blacklist
-  117: III-29-30  # blacklist
-  118: III-29-40  # blacklist
+  117: III-29-30
+  118: III-29-40
   119: III-3
   120: III-30-30  # blacklist
-  121: III-33  # blacklist
-  122: III-34  # blacklist
-  123: III-35  # blacklist
-  124: III-37  # blacklist
+  121: III-33
+  122: III-34
+  123: III-35
+  124: III-37
   125: III-39
-  126: III-40  # blacklist
-  127: III-42  # blacklist
-  128: III-43  # blacklist
-  129: III-45  # blacklist
-  130: III-46  # blacklist
-  131: III-47  # blacklist
+  126: III-40
+  127: III-42
+  128: III-43
+  129: III-45
+  130: III-46
+  131: III-47
   132: III-5
-  133: III-50  # blacklist
+  133: III-50
   134: III-54
-  135: III-59  # blacklist
+  135: III-59
   136: III-6
   137: III-64  # blacklist
   138: III-68  # blacklist
-  139: III-74  # blacklist
-  140: III-77  # blacklist
-  141: III-78  # blacklist
-  142: III-8-1  # blacklist
+  139: III-74
+  140: III-77
+  141: III-78
+  142: III-8-1
   143: III-84  # blacklist
   144: III-84-1  # blacklist
   145: III-85-2
@@ -163,7 +163,7 @@ names:
   148: III-86-1  # blacklist
   149: III-86-2  # blacklist
   150: III-87  # blacklist
-  151: III-90  # blacklist
+  151: III-90
   152: III-90.1  # blacklist
   153: III-90.2  # blacklist
   154: III-91  # blacklist
@@ -173,41 +173,41 @@ names:
   158: IV-11  # blacklist
   159: IV-12  # blacklist
   160: IV-12.1  # blacklist
-  161: IV-13-1  # blacklist
-  162: IV-13-2  # blacklist
-  163: IV-13-3  # blacklist
-  164: IV-13-4  # blacklist
-  165: IV-13-5  # blacklist
-  166: IV-13-6  # blacklist
-  167: IV-13.1-2  # blacklist
-  168: IV-13.1-3  # blacklist
-  169: IV-13.1-4  # blacklist
+  161: IV-13-1
+  162: IV-13-2
+  163: IV-13-3
+  164: IV-13-4
+  165: IV-13-5
+  166: IV-13-6
+  167: IV-13.1-2
+  168: IV-13.1-3
+  169: IV-13.1-4
   170: IV-16  # blacklist
-  171: IV-17  # blacklist
+  171: IV-17
   172: IV-18
-  173: IV-2  # blacklist
+  173: IV-2
   174: IV-20-1  # blacklist
-  175: IV-3-1  # blacklist
-  176: IV-3-2  # blacklist
+  175: IV-3-1
+  176: IV-3-2
   177: IV-3-4  # blacklist
   178: IV-3-5  # blacklist
-  179: IV-5  # blacklist
+  179: IV-5
   180: IV-6
-  181: VI-2.1  # blacklist
-  182: VI-3-1  # blacklist
-  183: VI-3-2  # blacklist
-  184: VI-3.1-1  # blacklist
-  185: VI-3.1-2  # blacklist
-  186: VI-8  # blacklist
-  187: VII-4  # blacklist
-  188: VII-4-1  # blacklist
-  189: VII-4-2  # blacklist
-  190: VII-4.1-1  # blacklist
-  191: VII-4.3  # blacklist
-  192: VII-4.3-1  # blacklist
-  193: VII-4.3-2  # blacklist
-  194: VII-4.4-1  # blacklist
-  195: VII-4.4-2  # blacklist
+  181: VI-2.1
+  182: VI-3-1
+  183: VI-3-2
+  184: VI-3.1-1
+  185: VI-3.1-2
+  186: VI-8
+  187: VII-4
+  188: VII-4-1
+  189: VII-4-2
+  190: VII-4.1-1
+  191: VII-4.3
+  192: VII-4.3-1
+  193: VII-4.3-2
+  194: VII-4.4-1
+  195: VII-4.4-2
   196: X-1.1  # blacklist
   197: X-1.2  # blacklist
   198: X-4
@@ -313,78 +313,78 @@ names:
   298: Steep_descent_5_percent
   299: Steep_ascent_5_percent
   300: complementary--accident-area--g3  # blacklist
-  301: complementary--both-directions--g1  # blacklist
-  302: complementary--buses--g1  # blacklist
-  303: complementary--chevron-left--g1  # blacklist
-  304: complementary--chevron-left--g2  # blacklist
-  305: complementary--chevron-left--g3  # blacklist
-  306: complementary--chevron-left--g4  # blacklist
-  307: complementary--chevron-left--g5  # blacklist
-  308: complementary--chevron-right--g1  # blacklist
-  309: complementary--chevron-right--g3  # blacklist
-  310: complementary--chevron-right--g4  # blacklist
-  311: complementary--chevron-right--g5  # blacklist
-  312: complementary--chevron-right-unsure--g6  # blacklist
-  313: complementary--distance--g1  # blacklist
-  314: complementary--distance--g2  # blacklist
-  315: complementary--distance--g3  # blacklist
-  316: complementary--except-bicycles--g1  # blacklist
-  317: complementary--extent-of-prohibition-area-both-direction--g1  # blacklist
-  318: complementary--go-left--g1  # blacklist
-  319: complementary--go-right--g1  # blacklist
-  320: complementary--go-right--g2  # blacklist
-  321: complementary--keep-left--g1  # blacklist
-  322: complementary--keep-right--g1  # blacklist
-  323: complementary--maximum-speed-limit-15--g1  # blacklist
-  324: complementary--maximum-speed-limit-20--g1  # blacklist
-  325: complementary--maximum-speed-limit-25--g1  # blacklist
-  326: complementary--maximum-speed-limit-30--g1  # blacklist
-  327: complementary--maximum-speed-limit-35--g1  # blacklist
-  328: complementary--maximum-speed-limit-40--g1  # blacklist
-  329: complementary--maximum-speed-limit-45--g1  # blacklist
-  330: complementary--maximum-speed-limit-50--g1  # blacklist
-  331: complementary--maximum-speed-limit-55--g1  # blacklist
-  332: complementary--maximum-speed-limit-70--g1  # blacklist
-  333: complementary--maximum-speed-limit-75--g1  # blacklist
-  334: complementary--obstacle-delineator--g1  # blacklist
-  335: complementary--obstacle-delineator--g2  # blacklist
-  336: complementary--one-direction-left--g1  # blacklist
-  337: complementary--one-direction-right--g1  # blacklist
-  338: complementary--pass-right--g1  # blacklist
-  339: complementary--priority-route-at-intersection--g1  # blacklist
-  340: complementary--tow-away-zone--g1  # blacklist
-  341: complementary--trucks--g1  # blacklist
-  342: complementary--trucks-turn-right--g1  # blacklist
-  343: complementary--turn-left--g2  # blacklist
-  344: complementary--turn-right--g2  # blacklist
-  345: information--airport--g1  # blacklist
-  346: information--airport--g2  # blacklist
-  347: information--bike-route--g1  # blacklist
+  301: complementary--both-directions--g1
+  302: complementary--buses--g1
+  303: complementary--chevron-left--g1
+  304: complementary--chevron-left--g2
+  305: complementary--chevron-left--g3
+  306: complementary--chevron-left--g4
+  307: complementary--chevron-left--g5
+  308: complementary--chevron-right--g1
+  309: complementary--chevron-right--g3
+  310: complementary--chevron-right--g4
+  311: complementary--chevron-right--g5
+  312: complementary--chevron-right-unsure--g6
+  313: complementary--distance--g1
+  314: complementary--distance--g2
+  315: complementary--distance--g3
+  316: complementary--except-bicycles--g1
+  317: complementary--extent-of-prohibition-area-both-direction--g1
+  318: complementary--go-left--g1
+  319: complementary--go-right--g1
+  320: complementary--go-right--g2
+  321: complementary--keep-left--g1
+  322: complementary--keep-right--g1
+  323: complementary--maximum-speed-limit-15--g1
+  324: complementary--maximum-speed-limit-20--g1
+  325: complementary--maximum-speed-limit-25--g1
+  326: complementary--maximum-speed-limit-30--g1
+  327: complementary--maximum-speed-limit-35--g1
+  328: complementary--maximum-speed-limit-40--g1
+  329: complementary--maximum-speed-limit-45--g1
+  330: complementary--maximum-speed-limit-50--g1
+  331: complementary--maximum-speed-limit-55--g1
+  332: complementary--maximum-speed-limit-70--g1
+  333: complementary--maximum-speed-limit-75--g1
+  334: complementary--obstacle-delineator--g1
+  335: complementary--obstacle-delineator--g2
+  336: complementary--one-direction-left--g1
+  337: complementary--one-direction-right--g1
+  338: complementary--pass-right--g1
+  339: complementary--priority-route-at-intersection--g1
+  340: complementary--tow-away-zone--g1
+  341: complementary--trucks--g1
+  342: complementary--trucks-turn-right--g1
+  343: complementary--turn-left--g2
+  344: complementary--turn-right--g2
+  345: information--airport--g1
+  346: information--airport--g2
+  347: information--bike-route--g1
   348: information--bus-stop--g1  # blacklist
-  349: information--camp--g1  # blacklist
-  350: information--central-lane--g1  # blacklist
-  351: information--children--g1  # blacklist
-  352: information--dead-end--g1  # blacklist
-  353: information--dead-end-except-bicycles--g1  # blacklist
+  349: information--camp--g1
+  350: information--central-lane--g1
+  351: information--children--g1
+  352: information--dead-end--g1
+  353: information--dead-end-except-bicycles--g1
   354: information--disabled-persons--g1
-  355: information--emergency-facility--g2  # blacklist
-  356: information--end-of-built-up-area--g1  # blacklist
+  355: information--emergency-facility--g2
+  356: information--end-of-built-up-area--g1
   357: information--end-of-limited-access-road--g1
   358: information--end-of-living-street--g1
-  359: information--end-of-motorway--g1  # blacklist
-  360: information--end-of-pedestrians-only--g2  # blacklist
-  361: information--food--g2  # blacklist
+  359: information--end-of-motorway--g1
+  360: information--end-of-pedestrians-only--g2
+  361: information--food--g2
   362: information--gas-station--g1
-  363: information--gas-station--g3  # blacklist
-  364: information--highway-exit--g1  # blacklist
+  363: information--gas-station--g3
+  364: information--highway-exit--g1
   365: information--highway-interstate-route--g2  # blacklist
   366: information--hospital--g1  # blacklist
   367: information--interstate-route--g1  # blacklist
   368: information--limited-access-road--g1
-  369: information--living-street--g1  # blacklist
-  370: information--lodging--g1  # blacklist
+  369: information--living-street--g1
+  370: information--lodging--g1
   371: information--minimum-speed-40--g1
-  372: information--motorway--g1  # blacklist
+  372: information--motorway--g1
   373: information--no-parking--g3
   374: information--parking--g1
   375: information--parking--g2
@@ -395,10 +395,10 @@ names:
   380: information--pedestrians-crossing--g1
   381: information--pedestrians-crossing--g2
   382: information--road-bump--g1
-  383: information--safety-area--g2  # blacklist
+  383: information--safety-area--g2
   384: information--stairs--g1
-  385: information--telephone--g1  # blacklist
-  386: information--telephone--g2  # blacklist
+  385: information--telephone--g1
+  386: information--telephone--g2
   387: information--trailer-camping--g1
   388: information--tram-bus-stop--g2
   389: other-sign
@@ -409,11 +409,11 @@ names:
   394: regulatory--detour-left--g1
   395: regulatory--do-not-block-intersection--g1  # blacklist
   396: regulatory--do-not-stop-on-tracks--g1  # blacklist
-  397: regulatory--dual-lanes-go-straight-on-left--g1  # blacklist
-  398: regulatory--dual-lanes-go-straight-on-right--g1  # blacklist
-  399: regulatory--dual-lanes-turn-left-no-u-turn--g1  # blacklist
-  400: regulatory--dual-lanes-turn-left-or-straight--g1  # blacklist
-  401: regulatory--dual-lanes-turn-right-or-straight--g1  # blacklist
+  397: regulatory--dual-lanes-go-straight-on-left--g1
+  398: regulatory--dual-lanes-go-straight-on-right--g1
+  399: regulatory--dual-lanes-turn-left-no-u-turn--g1
+  400: regulatory--dual-lanes-turn-left-or-straight--g1
+  401: regulatory--dual-lanes-turn-right-or-straight--g1
   402: regulatory--dual-path-bicycles-and-pedestrians--g1
   403: regulatory--dual-path-pedestrians-and-bicycles--g1
   404: regulatory--end-of-bicycles-only--g1
@@ -427,7 +427,7 @@ names:
   412: regulatory--end-of-speed-limit-zone--g1
   413: regulatory--give-way-to-oncoming-traffic--g1
   414: regulatory--go-straight--g1
-  415: regulatory--go-straight--g3  # blacklist
+  415: regulatory--go-straight--g3
   416: regulatory--go-straight-or-turn-left--g1
   417: regulatory--go-straight-or-turn-left--g2
   418: regulatory--go-straight-or-turn-left--g3
@@ -435,16 +435,16 @@ names:
   420: regulatory--go-straight-or-turn-right--g3
   421: regulatory--height-limit--g1
   422: regulatory--keep-left--g1
-  423: regulatory--keep-left--g2  # blacklist
+  423: regulatory--keep-left--g2
   424: regulatory--keep-right--g1
   425: regulatory--keep-right--g2
-  426: regulatory--keep-right--g4  # blacklist
+  426: regulatory--keep-right--g4
   427: regulatory--keep-right--g6
   428: regulatory--lane-control--g1  # blacklist
-  429: regulatory--left-turn-yield-on-green--g1  # blacklist
+  429: regulatory--left-turn-yield-on-green--g1
   430: regulatory--maximum-speed-limit-10--g1
   431: regulatory--maximum-speed-limit-100--g1
-  432: regulatory--maximum-speed-limit-100--g3  # blacklist
+  432: regulatory--maximum-speed-limit-100--g3
   433: regulatory--maximum-speed-limit-110--g1
   434: regulatory--maximum-speed-limit-120--g1
   435: regulatory--maximum-speed-limit-15--g1
@@ -452,23 +452,23 @@ names:
   437: regulatory--maximum-speed-limit-25--g1
   438: regulatory--maximum-speed-limit-25--g2
   439: regulatory--maximum-speed-limit-30--g1
-  440: regulatory--maximum-speed-limit-30--g3  # blacklist
-  441: regulatory--maximum-speed-limit-35--g2  # blacklist
+  440: regulatory--maximum-speed-limit-30--g3
+  441: regulatory--maximum-speed-limit-35--g2
   442: regulatory--maximum-speed-limit-40--g1
-  443: regulatory--maximum-speed-limit-40--g3  # blacklist
-  444: regulatory--maximum-speed-limit-40--g6  # blacklist
+  443: regulatory--maximum-speed-limit-40--g3
+  444: regulatory--maximum-speed-limit-40--g6
   445: regulatory--maximum-speed-limit-45--g1
-  446: regulatory--maximum-speed-limit-45--g3  # blacklist
+  446: regulatory--maximum-speed-limit-45--g3
   447: regulatory--maximum-speed-limit-5--g1
   448: regulatory--maximum-speed-limit-50--g1
-  449: regulatory--maximum-speed-limit-50--g6  # blacklist
-  450: regulatory--maximum-speed-limit-55--g2  # blacklist
+  449: regulatory--maximum-speed-limit-50--g6
+  450: regulatory--maximum-speed-limit-55--g2
   451: regulatory--maximum-speed-limit-60--g1
-  452: regulatory--maximum-speed-limit-65--g2  # blacklist
+  452: regulatory--maximum-speed-limit-65--g2
   453: regulatory--maximum-speed-limit-70--g1
   454: regulatory--maximum-speed-limit-80--g1
   455: regulatory--maximum-speed-limit-90--g1
-  456: regulatory--maximum-speed-limit-led-100--g1  # blacklist
+  456: regulatory--maximum-speed-limit-led-100--g1
   457: regulatory--maximum-speed-limit-led-60--g1
   458: regulatory--maximum-speed-limit-led-80--g1
   459: regulatory--minimum-safe-distance--g1
@@ -529,187 +529,187 @@ names:
   514: regulatory--no-u-turn--g3
   515: regulatory--no-vehicles-carrying-dangerous-goods--g1
   516: regulatory--one-way-left--g1
-  517: regulatory--one-way-left--g2  # blacklist
-  518: regulatory--one-way-left--g3  # blacklist
-  519: regulatory--one-way-right--g1  # blacklist
-  520: regulatory--one-way-right--g2  # blacklist
-  521: regulatory--one-way-right--g3  # blacklist
-  522: regulatory--one-way-straight--g1  # blacklist
-  523: regulatory--parking-restrictions--g2  # blacklist
+  517: regulatory--one-way-left--g2
+  518: regulatory--one-way-left--g3
+  519: regulatory--one-way-right--g1
+  520: regulatory--one-way-right--g2
+  521: regulatory--one-way-right--g3
+  522: regulatory--one-way-straight--g1
+  523: regulatory--parking-restrictions--g2
   524: regulatory--pass-on-either-side--g1
   525: regulatory--pass-on-either-side--g2
   526: regulatory--passing-lane-ahead--g1  # blacklist
   527: regulatory--pedestrians-only--g1
   528: regulatory--pedestrians-only--g2
-  529: regulatory--priority-over-oncoming-vehicles--g1  # blacklist
+  529: regulatory--priority-over-oncoming-vehicles--g1
   530: regulatory--priority-road--g4
   531: regulatory--radar-enforced--g1  # blacklist
-  532: regulatory--reversible-lanes--g2  # blacklist
+  532: regulatory--reversible-lanes--g2
   533: regulatory--road-closed--g1
   534: regulatory--road-closed--g2  # blacklist
   535: regulatory--road-closed-to-vehicles--g1
   536: regulatory--road-closed-to-vehicles--g3
   537: regulatory--roundabout--g1
-  538: regulatory--roundabout--g2  # blacklist
+  538: regulatory--roundabout--g2
   539: regulatory--shared-path-bicycles-and-pedestrians--g1
   540: regulatory--shared-path-pedestrians-and-bicycles--g1
   541: regulatory--stop--g1
   542: regulatory--stop--g10
-  543: regulatory--stop--g2  # blacklist
-  544: regulatory--stop-here-on-red-or-flashing-light--g1  # blacklist
-  545: regulatory--stop-here-on-red-or-flashing-light--g2  # blacklist
+  543: regulatory--stop--g2
+  544: regulatory--stop-here-on-red-or-flashing-light--g1
+  545: regulatory--stop-here-on-red-or-flashing-light--g2
   546: regulatory--stop-signals--g1
   547: regulatory--text-four-lines--g1  # blacklist
-  548: regulatory--triple-lanes-turn-left-center-lane--g1  # blacklist
-  549: regulatory--truck-speed-limit-60--g1  # blacklist
+  548: regulatory--triple-lanes-turn-left-center-lane--g1
+  549: regulatory--truck-speed-limit-60--g1
   550: regulatory--turn-left--g1
   551: regulatory--turn-left--g2
   552: regulatory--turn-left--g3
   553: regulatory--turn-left-ahead--g1
   554: regulatory--turn-right--g1
   555: regulatory--turn-right--g2
-  556: regulatory--turn-right--g3  # blacklist
+  556: regulatory--turn-right--g3
   557: regulatory--turn-right-ahead--g1
   558: regulatory--turn-right-ahead--g2
-  559: regulatory--turning-vehicles-yield-to-pedestrians--g1  # blacklist
+  559: regulatory--turning-vehicles-yield-to-pedestrians--g1
   560: regulatory--u-turn--g1
   561: regulatory--weight-limit--g1
   562: regulatory--weight-limit-with-trucks--g1  # blacklist
   563: regulatory--width-limit--g1
   564: regulatory--wrong-way--g1  # blacklist
-  565: regulatory--yield--g1  # blacklist
-  566: warning--accidental-area-unsure--g2  # blacklist
-  567: warning--added-lane-right--g1  # blacklist
+  565: regulatory--yield--g1
+  566: warning--accidental-area-unsure--g2
+  567: warning--added-lane-right--g1
   568: warning--bicycles-crossing--g1
-  569: warning--bicycles-crossing--g2  # blacklist
-  570: warning--bicycles-crossing--g3  # blacklist
-  571: warning--bus-stop-ahead--g3  # blacklist
+  569: warning--bicycles-crossing--g2
+  570: warning--bicycles-crossing--g3
+  571: warning--bus-stop-ahead--g3
   572: warning--children--g1
   573: warning--children--g2  # blacklist
   574: warning--crossroads--g1
-  575: warning--crossroads--g3  # blacklist
+  575: warning--crossroads--g3
   576: warning--crossroads-with-priority-to-the-right--g1
   577: warning--curve-left--g1
-  578: warning--curve-left--g2  # blacklist
+  578: warning--curve-left--g2
   579: warning--curve-right--g1
-  580: warning--curve-right--g2  # blacklist
-  581: warning--dip--g2  # blacklist
-  582: warning--divided-highway-ends--g1  # blacklist
-  583: warning--divided-highway-ends--g2  # blacklist
+  580: warning--curve-right--g2
+  581: warning--dip--g2
+  582: warning--divided-highway-ends--g1
+  583: warning--divided-highway-ends--g2
   584: warning--domestic-animals--g1
-  585: warning--domestic-animals--g3  # blacklist
+  585: warning--domestic-animals--g3
   586: warning--double-curve-first-left--g1
-  587: warning--double-curve-first-left--g2  # blacklist
+  587: warning--double-curve-first-left--g2
   588: warning--double-curve-first-right--g1
-  589: warning--double-curve-first-right--g2  # blacklist
-  590: warning--double-reverse-curve-right--g1  # blacklist
-  591: warning--double-turn-first-right--g1  # blacklist
-  592: warning--dual-lanes-right-turn-or-go-straight--g1  # blacklist
-  593: warning--emergency-vehicles--g1  # blacklist
-  594: warning--equestrians-crossing--g2  # blacklist
+  589: warning--double-curve-first-right--g2
+  590: warning--double-reverse-curve-right--g1
+  591: warning--double-turn-first-right--g1
+  592: warning--dual-lanes-right-turn-or-go-straight--g1
+  593: warning--emergency-vehicles--g1
+  594: warning--equestrians-crossing--g2
   595: warning--falling-rocks-or-debris-right--g1
-  596: warning--falling-rocks-or-debris-right--g2  # blacklist
-  597: warning--falling-rocks-or-debris-right--g4  # blacklist
-  598: warning--flaggers-in-road--g1  # blacklist
-  599: warning--hairpin-curve-left--g1  # blacklist
-  600: warning--hairpin-curve-left--g3  # blacklist
-  601: warning--hairpin-curve-right--g1  # blacklist
-  602: warning--hairpin-curve-right--g4  # blacklist
-  603: warning--height-restriction--g2  # blacklist
-  604: warning--horizontal-alignment-left--g1  # blacklist
-  605: warning--horizontal-alignment-right--g1  # blacklist
-  606: warning--horizontal-alignment-right--g3  # blacklist
-  607: warning--junction-with-a-side-road-acute-left--g1  # blacklist
-  608: warning--junction-with-a-side-road-acute-right--g1  # blacklist
+  596: warning--falling-rocks-or-debris-right--g2
+  597: warning--falling-rocks-or-debris-right--g4
+  598: warning--flaggers-in-road--g1
+  599: warning--hairpin-curve-left--g1
+  600: warning--hairpin-curve-left--g3
+  601: warning--hairpin-curve-right--g1
+  602: warning--hairpin-curve-right--g4
+  603: warning--height-restriction--g2
+  604: warning--horizontal-alignment-left--g1
+  605: warning--horizontal-alignment-right--g1
+  606: warning--horizontal-alignment-right--g3
+  607: warning--junction-with-a-side-road-acute-left--g1
+  608: warning--junction-with-a-side-road-acute-right--g1
   609: warning--junction-with-a-side-road-perpendicular-left--g1
-  610: warning--junction-with-a-side-road-perpendicular-left--g3  # blacklist
-  611: warning--junction-with-a-side-road-perpendicular-left--g4  # blacklist
+  610: warning--junction-with-a-side-road-perpendicular-left--g3
+  611: warning--junction-with-a-side-road-perpendicular-left--g4
   612: warning--junction-with-a-side-road-perpendicular-right--g1
-  613: warning--junction-with-a-side-road-perpendicular-right--g3  # blacklist
-  614: warning--kangaloo-crossing--g1  # blacklist
-  615: warning--loop-270-degree--g1  # blacklist
-  616: warning--narrow-bridge--g1  # blacklist
+  613: warning--junction-with-a-side-road-perpendicular-right--g3
+  614: warning--kangaloo-crossing--g1
+  615: warning--loop-270-degree--g1
+  616: warning--narrow-bridge--g1
   617: warning--narrow-bridge--g3
-  618: warning--offset-roads--g3  # blacklist
+  618: warning--offset-roads--g3
   619: warning--other-danger--g1
-  620: warning--other-danger--g3  # blacklist
-  621: warning--pass-left-or-right--g1  # blacklist
-  622: warning--pass-left-or-right--g2  # blacklist
+  620: warning--other-danger--g3
+  621: warning--pass-left-or-right--g1
+  622: warning--pass-left-or-right--g2
   623: warning--pedestrian-stumble-train--g1
   624: warning--pedestrians-crossing--g1
-  625: warning--pedestrians-crossing--g10  # blacklist
-  626: warning--pedestrians-crossing--g11  # blacklist
+  625: warning--pedestrians-crossing--g10
+  626: warning--pedestrians-crossing--g11
   627: warning--pedestrians-crossing--g12
-  628: warning--pedestrians-crossing--g4  # blacklist
+  628: warning--pedestrians-crossing--g4
   629: warning--pedestrians-crossing--g5
-  630: warning--pedestrians-crossing--g9  # blacklist
-  631: warning--playground--g1  # blacklist
-  632: warning--playground--g3  # blacklist
-  633: warning--railroad-crossing--g1  # blacklist
-  634: warning--railroad-crossing--g3  # blacklist
+  630: warning--pedestrians-crossing--g9
+  631: warning--playground--g1
+  632: warning--playground--g3
+  633: warning--railroad-crossing--g1
+  634: warning--railroad-crossing--g3
   635: warning--railroad-crossing--g4  # blacklist
   636: warning--railroad-crossing-with-barriers--g1
-  637: warning--railroad-crossing-with-barriers--g2  # blacklist
-  638: warning--railroad-crossing-with-barriers--g4  # blacklist
+  637: warning--railroad-crossing-with-barriers--g2
+  638: warning--railroad-crossing-with-barriers--g4
   639: warning--railroad-crossing-without-barriers--g1
   640: warning--railroad-crossing-without-barriers--g3
-  641: warning--railroad-crossing-without-barriers--g4  # blacklist
-  642: warning--railroad-intersection--g3  # blacklist
-  643: warning--railroad-intersection--g4  # blacklist
+  641: warning--railroad-crossing-without-barriers--g4
+  642: warning--railroad-intersection--g3
+  643: warning--railroad-intersection--g4
   644: warning--restricted-zone--g1
   645: warning--road-bump--g1
   646: warning--road-bump--g2
   647: warning--road-narrows--g1
-  648: warning--road-narrows--g2  # blacklist
+  648: warning--road-narrows--g2
   649: warning--road-narrows-left--g1
-  650: warning--road-narrows-left--g2  # blacklist
+  650: warning--road-narrows-left--g2
   651: warning--road-narrows-right--g1
-  652: warning--road-narrows-right--g2  # blacklist
-  653: warning--road-widens--g1  # blacklist
-  654: warning--road-widens-right--g1  # blacklist
+  652: warning--road-narrows-right--g2
+  653: warning--road-widens--g1
+  654: warning--road-widens-right--g1
   655: warning--roadworks--g1
-  656: warning--roadworks--g2  # blacklist
+  656: warning--roadworks--g2
   657: warning--roadworks--g3
-  658: warning--roadworks--g4  # blacklist
+  658: warning--roadworks--g4
   659: warning--roadworks--g6
   660: warning--roundabout--g1
-  661: warning--roundabout--g25  # blacklist
+  661: warning--roundabout--g25
   662: warning--school-zone--g2
-  663: warning--shared-lane-motorcycles-bicycles--g1  # blacklist
-  664: warning--slippery-motorcycles--g1  # blacklist
+  663: warning--shared-lane-motorcycles-bicycles--g1
+  664: warning--slippery-motorcycles--g1
   665: warning--slippery-road-surface--g1
-  666: warning--slippery-road-surface--g2  # blacklist
-  667: warning--steep-ascent--g7  # blacklist
-  668: warning--stop-ahead--g9  # blacklist
+  666: warning--slippery-road-surface--g2
+  667: warning--steep-ascent--g7
+  668: warning--stop-ahead--g9
   669: warning--t-roads--g1
-  670: warning--t-roads--g2  # blacklist
-  671: warning--texts--g1  # blacklist
-  672: warning--texts--g2  # blacklist
-  673: warning--texts--g3  # blacklist
-  674: warning--traffic-merges-left--g1  # blacklist
+  670: warning--t-roads--g2
+  671: warning--texts--g1
+  672: warning--texts--g2
+  673: warning--texts--g3
+  674: warning--traffic-merges-left--g1
   675: warning--traffic-merges-left--g2
-  676: warning--traffic-merges-right--g1  # blacklist
+  676: warning--traffic-merges-right--g1
   677: warning--traffic-merges-right--g2
   678: warning--traffic-signals--g1
-  679: warning--traffic-signals--g2  # blacklist
-  680: warning--traffic-signals--g3  # blacklist
-  681: warning--traffic-signals--g4  # blacklist
-  682: warning--trail-crossing--g2  # blacklist
+  679: warning--traffic-signals--g2
+  680: warning--traffic-signals--g3
+  681: warning--traffic-signals--g4
+  682: warning--trail-crossing--g2
   683: warning--trams-crossing--g1
-  684: warning--trucks-crossing--g1  # blacklist
-  685: warning--turn-left--g1  # blacklist
-  686: warning--turn-right--g1  # blacklist
+  684: warning--trucks-crossing--g1
+  685: warning--turn-left--g1
+  686: warning--turn-right--g1
   687: warning--turn-right--g2
   688: warning--two-way-traffic--g1
-  689: warning--two-way-traffic--g2  # blacklist
-  690: warning--uneven-road--g2  # blacklist
+  689: warning--two-way-traffic--g2
+  690: warning--uneven-road--g2
   691: warning--uneven-road--g6
-  692: warning--uneven-roads-ahead--g1  # blacklist
+  692: warning--uneven-roads-ahead--g1
   693: warning--wild-animals--g1
-  694: warning--wild-animals--g4  # blacklist
-  695: warning--winding-road-first-left--g1  # blacklist
+  694: warning--wild-animals--g4
+  695: warning--winding-road-first-left--g1
   696: warning--winding-road-first-left--g2
-  697: warning--winding-road-first-right--g1  # blacklist
+  697: warning--winding-road-first-right--g1
   698: warning--winding-road-first-right--g3
-  699: warning--wombat-crossing--g1  # blacklist
-  700: warning--y-roads--g1  # blacklist
+  699: warning--wombat-crossing--g1
+  700: warning--y-roads--g1
