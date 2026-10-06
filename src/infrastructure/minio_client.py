@@ -66,7 +66,13 @@ class MinIOClient:
 
         try:
             Path(local_file_path).parent.mkdir(parents=True, exist_ok=True)
-            s3.download_file(bucket_name, object_name, local_file_path)
+            try:
+                response = s3.get_object(Bucket=bucket_name, Key=object_name)
+                with open(local_file_path, "wb") as f:
+                    for chunk in response["Body"].iter_chunks(chunk_size=1024 * 1024):
+                        f.write(chunk)
+            except Exception:
+                s3.download_file(bucket_name, object_name, local_file_path)
             logger.debug(f"Successfully downloaded '{object_name}' to '{local_file_path}'")
             return True
         except Exception as e:

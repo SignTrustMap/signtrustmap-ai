@@ -46,3 +46,29 @@ class SubmissionInferenceResponse(BaseModel):
     video_fps: Optional[float] = None
     image_width: Optional[int] = None
     image_height: Optional[int] = None
+
+
+class EarlyClassificationRequest(BaseModel):
+    media_url: Optional[str] = Field(None, description="Direct URL to the image (MinIO or HTTP)")
+    bucket: Optional[str] = Field(None, description="MinIO bucket name (default: stm-sign-crops)")
+    object_key: Optional[str] = Field(None, description="MinIO object key")
+    sign_id: Optional[str] = Field(None, description="Target verified sign ID if revalidating")
+    task_id: Optional[str] = Field(None, description="Revalidation task ID")
+
+
+class EarlyClassificationResponse(BaseModel):
+    status: str
+    class_id: Optional[int] = None
+    class_name: Optional[str] = None
+    confidence: float = 0.0
+    detect_confidence: Optional[float] = None
+    classify_confidence: Optional[float] = None
+    category: Optional[str] = None
+    name_vi: Optional[str] = None
+    name_en: Optional[str] = None
+    standard_code: Optional[str] = None
+    sign_id: Optional[str] = None
+    task_id: Optional[str] = None
+    media_url: Optional[str] = None
+    signs: List[SubmissionSignResult] = Field(default_factory=list)
+
