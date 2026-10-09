@@ -14,7 +14,7 @@ import numpy as np
 import torch
 from loguru import logger
 from src.core.classifier import SignClassifier
-from supplementary_augmentation.generator import SupplementaryAugmentor
+from src.data.augmentation.generator import SupplementaryAugmentor
 
 
 def draw_bounding_boxes(

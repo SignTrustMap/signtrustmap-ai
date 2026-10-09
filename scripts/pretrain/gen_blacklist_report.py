@@ -706,7 +706,7 @@ window.addEventListener('DOMContentLoaded', () => {{
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data-yaml", type=str, default="pretrain/all.yaml")
+    parser.add_argument("--data-yaml", type=str, default="configs/training/all.yaml")
     parser.add_argument("--crops-dir", type=str, default="runs/sign_crops")
     parser.add_argument("--output-dir", type=str, default="runs/sign_review")
     parser.add_argument("--n-clusters", type=int, default=8)

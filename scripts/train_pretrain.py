@@ -1,12 +1,12 @@
 import os
-import monkeypatch
+from src.training import monkeypatch
 import yaml
 from loguru import logger
 
 os.environ["MPLBACKEND"] = "Agg"
 from ultralytics import YOLO
 
-dataset_yaml_path = "pretrain/all.yaml"
+dataset_yaml_path = "configs/training/all.yaml"
 active_classes = []
 
 with open(dataset_yaml_path, "r") as f:

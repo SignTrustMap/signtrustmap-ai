@@ -126,7 +126,7 @@ FONT_CANDIDATES = [
     "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
 ]
 
-REF_SYMBOLS_DIR = Path(__file__).resolve().parent.parent / "outputs" / "symbol" / "ref_symbols"
+REF_SYMBOLS_DIR = Path(__file__).resolve().parents[3] / "outputs" / "symbol" / "ref_symbols"
 
 
 def _get_font(size: int) -> ImageFont.ImageFont:

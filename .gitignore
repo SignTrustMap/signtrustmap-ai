@@ -112,7 +112,7 @@ Thumbs.db
 
 weights/**/*
 !weights/**/.gitkeep
-data/
+/data/
 .agents/
 kaggle_upload/
 
@@ -121,6 +121,7 @@ kaggle_upload/
 runs
 outputs
 configs/
+!configs/training/
 deploy/*.service
 deploy/setup_services.sh
 logs

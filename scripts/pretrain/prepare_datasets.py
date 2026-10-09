@@ -292,7 +292,7 @@ def prepare_mtsd_yolo_dataset(target_dir):
     os.makedirs(os.path.join(target_dir, "labels", "val"), exist_ok=True)
     os.makedirs(os.path.join(target_dir, "labels", "test"), exist_ok=True)
 
-    mtsd_yaml_path = os.path.join(os.path.dirname(__file__), "MTSD.yaml")
+    mtsd_yaml_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../configs/training/datasets/MTSD.yaml"))
     data_yaml_path = os.path.join(target_dir, "data.yaml")
 
     if os.path.exists(mtsd_yaml_path):
@@ -504,7 +504,7 @@ def _optimize_mtsd_single_item(item):
 def optimize_mtsd_dataset(target_dir, max_long_side=1280, quality=88, max_workers=None):
     if max_workers is None:
         max_workers = min(cpu_count(), 6)
-    mtsd_yaml_path = os.path.join(os.path.dirname(__file__), "MTSD.yaml")
+    mtsd_yaml_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../configs/training/datasets/MTSD.yaml"))
     with open(mtsd_yaml_path, "r") as f:
         lines = f.readlines()
     sorted_classes = []

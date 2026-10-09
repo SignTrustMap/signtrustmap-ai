@@ -54,7 +54,7 @@ def get_dataset_info(names: dict[int, str]) -> list[tuple[str, int, int]]:
 
 
 def extract_crops(
-    yaml_path: str = "pretrain/all.yaml",
+    yaml_path: str = "configs/training/all.yaml",
     output_base_dir: str = "runs/sign_crops",
     samples_per_class: int = 3,
     padding_ratio: float = 0.10,
@@ -191,7 +191,7 @@ def extract_crops(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data-yaml", type=str, default="pretrain/all.yaml")
+    parser.add_argument("--data-yaml", type=str, default="configs/training/all.yaml")
     parser.add_argument("--output-dir", type=str, default="runs/sign_crops")
     parser.add_argument("--samples-per-class", type=int, default=3)
     parser.add_argument("--padding", type=float, default=0.10)
