@@ -8,7 +8,7 @@ from scipy.stats import rankdata
 class R3CECSelector:
     """
     R3-CEC (Residual Class Priority, Informativeness, and Representativeness)
-    Active Learning Query Selection Strategy for Training-Free Visual-Language Models (CLIP/ProtoFuse).
+    Active Learning Query Selection Strategy for Training-Free Visual-Language Models (CLIP/TIMO).
     Reference: ICIT 2026 Paper Sec 3.1 - 3.3.
     """
 

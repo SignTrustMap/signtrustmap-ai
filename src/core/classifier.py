@@ -16,6 +16,7 @@ import clip
 import open_clip
 from src.core.config import settings
 from src.core.class_manager import class_manager
+from src.core.few_shot_manager import few_shot_manager
 from src.infrastructure.minio_client import minio_client
 
 
@@ -26,25 +27,39 @@ class TensorRTVisualRunner:
                 "TensorRT is not installed in this environment. "
                 "Cannot load TensorRT engine (.engine). Use a .pt or ONNX model, or install tensorrt."
             )
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
         self.device = torch.device(device)
         self.logger = trt.Logger(trt.Logger.WARNING)
         with open(engine_path, "rb") as f:
             runtime = trt.Runtime(self.logger)
             self.engine = runtime.deserialize_cuda_engine(f.read())
+        if self.engine is None:
+            raise RuntimeError(f"Failed to deserialize TensorRT engine from {engine_path}")
         self.context = self.engine.create_execution_context()
 
     def encode_image(self, batch_tensor: torch.Tensor) -> torch.Tensor:
         if not batch_tensor.is_cuda:
             batch_tensor = batch_tensor.to(self.device)
+        batch_tensor = batch_tensor.contiguous()
 
         batch_size = batch_tensor.shape[0]
-        self.context.set_input_shape("images", tuple(batch_tensor.shape))
-        output_tensor = torch.empty((batch_size, 512), dtype=torch.float32, device=self.device)
+        if batch_size == 1:
+            output_tensor = torch.empty((1, 512), dtype=torch.float32, device=self.device)
+            bindings = [batch_tensor.data_ptr(), output_tensor.data_ptr()]
+            self.context.execute_v2(bindings)
+            return output_tensor / torch.clamp(output_tensor.norm(dim=-1, keepdim=True), min=1e-8)
 
-        bindings = [batch_tensor.data_ptr(), output_tensor.data_ptr()]
-        self.context.execute_v2(bindings)
-        output_tensor = output_tensor / output_tensor.norm(dim=-1, keepdim=True)
-        return output_tensor
+        outputs = []
+        for i in range(batch_size):
+            single_input = batch_tensor[i : i + 1].contiguous()
+            out_i = torch.empty((1, 512), dtype=torch.float32, device=self.device)
+            bindings = [single_input.data_ptr(), out_i.data_ptr()]
+            self.context.execute_v2(bindings)
+            outputs.append(out_i)
+        output_tensor = torch.cat(outputs, dim=0)
+        return output_tensor / torch.clamp(output_tensor.norm(dim=-1, keepdim=True), min=1e-8)
 
 
 class SignClassifier:
@@ -65,8 +80,8 @@ class SignClassifier:
         logger.info(f"Loading SignClassifier on {self.device} ({self.weights_path})")
         self.model, self.preprocess = self._load_model(self.weights_path)
         self.text_features = self._load_or_build_text_features(self.prompt_template)
-        self.prototypes: torch.Tensor = self._load_or_build_prototypes()
-        logger.info(f"SignClassifier initialized ({len(self._class_ids)} classes, prototypes shape={self.prototypes.shape}).")
+        self.timo_weights, self.timo_bias = self._load_or_build_timo_classifier()
+        logger.info(f"SignClassifier initialized ({len(self._class_ids)} classes, timo_weights shape={self.timo_weights.shape}, timo_bias shape={self.timo_bias.shape}).")
 
     def _resolve_device(self, device: Optional[Union[int, str]]) -> str:
         if device is not None:
@@ -187,36 +202,62 @@ class SignClassifier:
         stem = Path(self.weights_path).stem.replace("/", "-")
         return cache_dir / f"text_embeddings_{stem}.pt"
 
-    def _get_prototype_cache_path(self) -> Path:
+    def _get_timo_cache_path(self) -> Path:
         base_dir = Path(__file__).resolve().parent.parent.parent
         cache_dir = base_dir / "weights" / "classifiers"
         cache_dir.mkdir(parents=True, exist_ok=True)
-        return cache_dir / "protofuse_prototypes_100.pt"
+        return cache_dir / "timo_classifier_100.pt"
 
-    def _load_or_build_prototypes(self) -> torch.Tensor:
-        cache_path = self._get_prototype_cache_path()
+    def _load_or_build_timo_classifier(self) -> Tuple[torch.Tensor, torch.Tensor]:
+        cache_path = self._get_timo_cache_path()
         if cache_path.exists():
             try:
-                logger.info(f"Loading ProtoFuse prototypes from {cache_path}")
-                proto = torch.load(cache_path, map_location=self.device)
-                if isinstance(proto, torch.Tensor) and proto.shape[0] == len(self._class_ids):
-                    proto = proto / proto.norm(dim=-1, keepdim=True)
-                    return proto.to(device=self.device, dtype=torch.float32)
-                logger.warning(f"Cached prototypes shape {proto.shape} does not match {len(self._class_ids)} classes.")
+                logger.info(f"Loading TIMO classifier weights from {cache_path}")
+                ckpt = torch.load(cache_path, map_location=self.device)
+                if isinstance(ckpt, dict) and "weights" in ckpt and "bias" in ckpt:
+                    w = ckpt["weights"].to(device=self.device, dtype=torch.float32)
+                    b = ckpt["bias"].to(device=self.device, dtype=torch.float32)
+                    if w.shape[1] == len(self._class_ids) and b.shape[0] == len(self._class_ids):
+                        return w, b
+                    logger.warning(f"Cached TIMO weights shape {w.shape} does not match {len(self._class_ids)} classes.")
             except Exception as e:
-                logger.warning(f"Failed to load ProtoFuse prototypes from {cache_path}: {e}")
-        logger.info("Initializing prototypes from text embeddings baseline.")
-        return self.text_features.clone()
+                logger.warning(f"Failed to load TIMO classifier weights from {cache_path}: {e}")
+
+        logger.info("Building TIMO classifier from support cache...")
+        try:
+            built_path = few_shot_manager.build_and_save_timo_classifier(
+                output_path=str(cache_path),
+                device=self.device,
+            )
+            ckpt = torch.load(built_path, map_location=self.device)
+            return ckpt["weights"].to(device=self.device, dtype=torch.float32), ckpt["bias"].to(device=self.device, dtype=torch.float32)
+        except Exception as e:
+            logger.warning(f"Failed to build TIMO classifier: {e}. Falling back to zero-shot CLIP baseline.")
+            t_norm = self.text_features / torch.clamp(self.text_features.norm(dim=-1, keepdim=True), min=1e-8)
+            w_fallback = 250.0 * t_norm.t().to(device=self.device, dtype=torch.float32)
+            b_fallback = torch.zeros(len(self._class_ids), device=self.device, dtype=torch.float32)
+            return w_fallback, b_fallback
+
+    def hot_reload_timo(self, timo_weights: torch.Tensor, timo_bias: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        cache_path = self._get_timo_cache_path()
+        self.timo_weights = timo_weights.to(device=self.device, dtype=torch.float32)
+        self.timo_bias = timo_bias.to(device=self.device, dtype=torch.float32)
+        try:
+            torch.save({"weights": self.timo_weights.cpu(), "bias": self.timo_bias.cpu()}, cache_path)
+            logger.info(f"Updated and saved TIMO classifier to {cache_path}")
+        except Exception as e:
+            logger.error(f"Failed to persist TIMO classifier to {cache_path}: {e}")
+        return self.timo_weights, self.timo_bias
+
+    @property
+    def prototypes(self) -> torch.Tensor:
+        return self.timo_weights.t()
 
     def rebuild_prototypes(self, prototypes_tensor: torch.Tensor) -> torch.Tensor:
-        cache_path = self._get_prototype_cache_path()
-        normed = prototypes_tensor / prototypes_tensor.norm(dim=-1, keepdim=True)
-        self.prototypes = normed.to(device=self.device, dtype=torch.float32)
-        try:
-            torch.save(self.prototypes.cpu(), cache_path)
-            logger.info(f"Updated and saved ProtoFuse prototypes to {cache_path}")
-        except Exception as e:
-            logger.error(f"Failed to persist ProtoFuse prototypes to {cache_path}: {e}")
+        logger.warning("rebuild_prototypes is deprecated, redirecting to hot_reload_timo")
+        w = prototypes_tensor.t().to(device=self.device, dtype=torch.float32)
+        b = torch.zeros(w.shape[1], device=self.device, dtype=torch.float32)
+        self.hot_reload_timo(w, b)
         return self.prototypes
 
     def _encode_prompts(self, prompts: List[str]) -> torch.Tensor:
@@ -427,10 +468,12 @@ class SignClassifier:
 
         with torch.inference_mode():
             image_features = self.model.encode_image(img_tensor)
-            image_features = image_features / image_features.norm(dim=-1, keepdim=True)
-            ref_feats = self.prototypes.to(device=image_features.device, dtype=image_features.dtype)
-            similarity = (100.0 * image_features @ ref_feats.T).softmax(dim=-1)
-            values, indices = similarity[0].topk(1)
+            image_features = image_features / torch.clamp(image_features.norm(dim=-1, keepdim=True), min=1e-8)
+            w = self.timo_weights.to(device=image_features.device, dtype=image_features.dtype)
+            b = self.timo_bias.to(device=image_features.device, dtype=image_features.dtype)
+            logits = image_features @ w + b
+            probabilities = logits.softmax(dim=-1)
+            values, indices = probabilities[0].topk(1)
 
         idx = int(indices[0].item())
         confidence = float(values[0].item())
@@ -476,10 +519,12 @@ class SignClassifier:
 
             with torch.inference_mode():
                 image_features = self.model.encode_image(batch_tensor)
-                image_features = image_features / image_features.norm(dim=-1, keepdim=True)
-                ref_feats = self.prototypes.to(device=image_features.device, dtype=image_features.dtype)
-                similarity = (100.0 * image_features @ ref_feats.T).softmax(dim=-1)
-                values, indices = similarity.topk(1, dim=-1)
+                image_features = image_features / torch.clamp(image_features.norm(dim=-1, keepdim=True), min=1e-8)
+                w = self.timo_weights.to(device=image_features.device, dtype=image_features.dtype)
+                b = self.timo_bias.to(device=image_features.device, dtype=image_features.dtype)
+                logits = image_features @ w + b
+                probabilities = logits.softmax(dim=-1)
+                values, indices = probabilities.topk(1, dim=-1)
 
             for i, global_idx in enumerate(chunk_indices):
                 idx = int(indices[i][0].item())
@@ -500,8 +545,10 @@ class SignClassifier:
             del self.model
         if hasattr(self, "text_features"):
             del self.text_features
-        if hasattr(self, "prototypes"):
-            del self.prototypes
+        if hasattr(self, "timo_weights"):
+            del self.timo_weights
+        if hasattr(self, "timo_bias"):
+            del self.timo_bias
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()

@@ -76,11 +76,12 @@ class ConfigManager:
                     "no_detection_score": 0.0,
                 },
             },
-            "protofuse": {
-                "fusion_weight_alpha": 0.5,
+            "timo": {
+                "alpha": 250.0,
+                "beta": 0.8,
                 "prompt_template": settings.CLASSIFIER_PROMPT_TEMPLATE or "a photo of a {} traffic sign.",
                 "normalize_embeddings": True,
-                "prototypes_cache_file": "weights/classifiers/protofuse_prototypes_100.pt",
+                "classifier_cache_file": "weights/classifiers/timo_classifier_100.pt",
             },
             "few_shot_support": {
                 "total_shots_per_class": 16,

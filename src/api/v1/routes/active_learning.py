@@ -1,6 +1,10 @@
 from typing import Optional
 from fastapi import APIRouter, Header, HTTPException, status
+import torch
 from loguru import logger
+from src.core.config import settings
+from src.core.model_manager import model_manager
+from src.core.few_shot_manager import few_shot_manager
 from src.core.active_learning.detection_scorer import al_engine
 from src.core.active_learning.store import al_store
 from src.core.active_learning.feedback_processor import feedback_processor
@@ -131,43 +135,42 @@ async def trigger_model_retrain(request: TrainTriggerRequest):
         )
 
 
+@router.post("/classifier/rebuild")
 @router.post("/prototypes/rebuild")
-async def rebuild_protofuse_prototypes(
+async def rebuild_classifier_weights(
     x_internal_token: Optional[str] = Header(None, alias="X-Internal-Token"),
 ):
     """
-    Recomputes ProtoFuse prototypes from the current support cache / database
-    and hot-reloads the active classifier prototypes in memory without downtime.
+    Recomputes TIMO Collapsed Classifier weights from the current support cache / database
+    and hot-reloads the active classifier in memory without downtime.
     """
-    from src.core.config import settings
-    from src.core.model_manager import model_manager
-
     if settings.INTERNAL_API_TOKEN and x_internal_token != settings.INTERNAL_API_TOKEN:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or missing X-Internal-Token header",
         )
 
-    logger.info("Received request to rebuild ProtoFuse prototypes...")
+    logger.info("Received request to rebuild TIMO classifier weights...")
     try:
         classifier = model_manager.get_classifier()
         if classifier is None:
             raise RuntimeError("Classifier model is not loaded in model_manager.")
 
-        # Re-load or build prototypes and update RAM
-        reloaded_proto = classifier._load_or_build_prototypes()
-        classifier.rebuild_prototypes(reloaded_proto)
+        ckpt_path = few_shot_manager.build_and_save_timo_classifier(device=classifier.device)
+        ckpt = torch.load(ckpt_path, map_location=classifier.device)
+        w, b = classifier.hot_reload_timo(ckpt["weights"], ckpt["bias"])
 
         return {
             "status": "SUCCESS",
-            "message": "ProtoFuse prototypes successfully rebuilt and hot-reloaded into RAM.",
-            "prototypes_shape": list(classifier.prototypes.shape),
+            "message": "TIMO Collapsed Classifier successfully rebuilt and hot-reloaded into RAM.",
+            "weights_shape": list(w.shape),
+            "bias_shape": list(b.shape),
         }
     except Exception as e:
-        logger.error(f"ProtoFuse rebuild failed: {e}")
+        logger.error(f"TIMO classifier rebuild failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"ProtoFuse rebuild failed: {str(e)}",
+            detail=f"TIMO classifier rebuild failed: {str(e)}",
         )
 
 

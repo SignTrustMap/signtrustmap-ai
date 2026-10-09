@@ -21,7 +21,7 @@ def compute_sharpness(img_bgr: np.ndarray) -> float:
 
 class FewShotSupportManager:
     """
-    Manages Configurable Few-Shot Support Pools and ProtoFuse Prototype calculation
+    Manages Configurable Few-Shot Support Pools and TIMO Collapsed Classifier calculation
     according to the Diversity K-Means & Anchor Replacement Policy.
     All parameters (total_shots, num_anchors, alpha, etc.) are fully configurable.
     """
@@ -41,13 +41,14 @@ class FewShotSupportManager:
             "preserve_pinned_shots": bool(cfg.get("preserve_pinned_shots", True)),
         }
 
-    def get_protofuse_config(self) -> Dict[str, Any]:
-        cfg = self.config.get("protofuse", {})
+    def get_timo_config(self) -> Dict[str, Any]:
+        cfg = self.config.get("timo", {})
         return {
-            "fusion_weight_alpha": float(cfg.get("fusion_weight_alpha", 0.5)),
+            "alpha": float(cfg.get("alpha", 250.0)),
+            "beta": float(cfg.get("beta", 0.8)),
             "prompt_template": str(cfg.get("prompt_template", "a photo of a {} traffic sign.")),
             "normalize_embeddings": bool(cfg.get("normalize_embeddings", True)),
-            "prototypes_cache_file": str(cfg.get("prototypes_cache_file", "weights/classifiers/protofuse_prototypes_100.pt")),
+            "classifier_cache_file": str(cfg.get("classifier_cache_file", "weights/classifiers/timo_classifier_100.pt")),
         }
 
     def select_support_shots(
@@ -217,47 +218,119 @@ class FewShotSupportManager:
         )
         return final_results
 
-    def compute_fused_prototype(
+    def compute_timo_classifier(
         self,
-        visual_features: np.ndarray,
-        text_feature: np.ndarray,
+        support_features: torch.Tensor,
+        support_labels: torch.Tensor,
+        text_features: torch.Tensor,
         alpha: Optional[float] = None,
-    ) -> np.ndarray:
-        """
-        Computes ProtoFuse fused prototype vector for a single class:
-        v_c = mean(phi(x_i)) / ||mean(phi(x_i))||
-        t_c = t_c / ||t_c||
-        p_c = alpha * v_c + (1 - alpha) * t_c
-        p_c = p_c / ||p_c||
+        beta: Optional[float] = None,
+        device: Optional[torch.device] = None,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        cfg = self.get_timo_config()
+        a = cfg["alpha"] if alpha is None else float(alpha)
+        b = cfg["beta"] if beta is None else float(beta)
 
-        Args:
-            visual_features: (M, D) array of visual embeddings from support shots.
-            text_feature: (D,) array representing prompt embedding.
-            alpha: Fusion weight. Defaults to config value (0.5).
+        if device is None:
+            device = support_features.device if isinstance(support_features, torch.Tensor) else torch.device("cpu")
 
-        Returns:
-            (D,) L2-normalized fused prototype vector.
-        """
-        cfg = self.get_protofuse_config()
-        a = cfg["fusion_weight_alpha"] if alpha is None else alpha
+        if not isinstance(support_features, torch.Tensor):
+            support_features = torch.tensor(support_features, dtype=torch.float32, device=device)
+        else:
+            support_features = support_features.to(device=device, dtype=torch.float32)
 
-        # Text prototype
-        t_norm = np.linalg.norm(text_feature)
-        t_c = text_feature / max(t_norm, 1e-8)
+        if not isinstance(support_labels, torch.Tensor):
+            support_labels = torch.tensor(support_labels, dtype=torch.long, device=device)
+        else:
+            support_labels = support_labels.to(device=device, dtype=torch.long)
 
-        if visual_features is None or len(visual_features) == 0:
-            return t_c
+        if not isinstance(text_features, torch.Tensor):
+            text_features = torch.tensor(text_features, dtype=torch.float32, device=device)
+        else:
+            text_features = text_features.to(device=device, dtype=torch.float32)
 
-        # Visual prototype
-        v_mean = np.mean(visual_features, axis=0)
-        v_norm = np.linalg.norm(v_mean)
-        v_c = v_mean / max(v_norm, 1e-8)
+        num_classes = text_features.shape[0]
+        dim = text_features.shape[1]
 
-        # ProtoFuse weighted fusion
-        p_c = a * v_c + (1.0 - a) * t_c
-        p_c_norm = np.linalg.norm(p_c)
-        p_c = p_c / max(p_c_norm, 1e-8)
-        return p_c
+        vecs_v = support_features / torch.clamp(support_features.norm(dim=-1, keepdim=True), min=1e-8)
+        t_proto = text_features / torch.clamp(text_features.norm(dim=-1, keepdim=True), min=1e-8)
+        clip_weights = t_proto.t()
+
+        labels_t = torch.arange(num_classes, device=device, dtype=torch.long)
+        vecs_c = torch.cat([vecs_v, b * t_proto], dim=0)
+        labels_c = torch.cat([support_labels, labels_t], dim=0)
+
+        mus_list = []
+        for i in range(num_classes):
+            mask = labels_c == i
+            if mask.any():
+                mus_list.append(vecs_c[mask].mean(dim=0))
+            else:
+                mus_list.append(t_proto[i])
+        mus = torch.stack(mus_list, dim=0)
+        mus = mus / torch.clamp(mus.norm(dim=-1, keepdim=True), min=1e-8)
+
+        center_vecs = torch.cat([vecs_c[labels_c == i] - mus[i].unsqueeze(0) for i in range(num_classes)], dim=0)
+        cov = center_vecs.T.cov()
+        reg = cov.trace() * torch.eye(dim, device=device, dtype=cov.dtype)
+        mat_reg = (center_vecs.shape[0] - 1) * cov + reg
+        try:
+            cov_inv = dim * torch.linalg.pinv(mat_reg)
+        except Exception:
+            cov_inv = dim * torch.linalg.pinv(mat_reg.cpu()).to(device=device, dtype=cov.dtype)
+
+        ps = torch.ones(num_classes, device=device, dtype=torch.float32) / float(num_classes)
+        w_gda = mus @ cov_inv
+        b_gda = ps.log() - 0.5 * torch.einsum("nd, dc, nc -> n", mus, cov_inv, mus)
+
+        w_timo = a * clip_weights + w_gda.t()
+        b_timo = b_gda
+
+        del center_vecs, cov, reg, cov_inv, w_gda, vecs_c, labels_c
+        if device.type == "cuda":
+            torch.cuda.empty_cache()
+
+        return w_timo, b_timo
+
+    def build_and_save_timo_classifier(
+        self,
+        support_cache_file: Optional[str] = None,
+        text_embeddings_file: Optional[str] = None,
+        output_path: Optional[str] = None,
+        device: Optional[str] = None,
+    ) -> Path:
+        base_dir = Path(__file__).resolve().parent.parent.parent
+        cfg = self.get_timo_config()
+
+        dev = torch.device(device if device is not None else ("cuda:0" if torch.cuda.is_available() else "cpu"))
+
+        supp_path = Path(support_cache_file) if support_cache_file else (base_dir / "outputs" / "evaluation" / "tip_cache.pt")
+        text_path = Path(text_embeddings_file) if text_embeddings_file else (base_dir / "weights" / "embeddings" / "text_embeddings_mobileclip_s2.pt")
+        out_path = Path(output_path) if output_path else (base_dir / cfg["classifier_cache_file"])
+
+        if not supp_path.exists():
+            raise FileNotFoundError(f"Support cache file not found at: {supp_path}")
+        if not text_path.exists():
+            raise FileNotFoundError(f"Text embeddings file not found at: {text_path}")
+
+        logger.info(f"Loading support features from {supp_path} and text embeddings from {text_path}")
+        supp_data = torch.load(supp_path, map_location=dev)
+        text_emb = torch.load(text_path, map_location=dev)
+
+        keys = supp_data["keys"] if isinstance(supp_data, dict) else supp_data
+        labels = supp_data["labels"] if isinstance(supp_data, dict) else torch.zeros(len(keys), dtype=torch.long)
+
+        w_timo, b_timo = self.compute_timo_classifier(
+            support_features=keys,
+            support_labels=labels,
+            text_features=text_emb,
+            device=dev,
+        )
+
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save({"weights": w_timo.cpu(), "bias": b_timo.cpu()}, out_path)
+        logger.info(f"TIMO Collapsed Classifier weights saved to {out_path} (weights shape: {list(w_timo.shape)}, bias shape: {list(b_timo.shape)})")
+        return out_path
 
 
 few_shot_manager = FewShotSupportManager()
