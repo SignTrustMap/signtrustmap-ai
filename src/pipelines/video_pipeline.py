@@ -76,6 +76,8 @@ def infer_video(
                 "confidence": classify_confidence if classify_confidence is not None else candidate["confidence"],
                 "detect_confidence": candidate.get("detect_confidence", candidate["confidence"]),
                 "classify_confidence": classify_confidence,
+                "top1": best.get("top1"),
+                "top5": best.get("top5", []),
                 "box_xyxy": candidate["box_xyxy"],
                 "best_frame_key": frame_storage_key,
                 "sign_crop_key": crop_storage_key,
@@ -124,14 +126,19 @@ def _best_candidate(candidates, video_path, artifact_dir, track_id, classifier):
         class_id = candidate["class_id"]
         class_name = candidate["class_name"]
         classify_confidence = None
+        top1 = None
+        top5 = []
         if classifier is not None:
             result = classifier.classify_crop(
                 classifier.crop_box(frame, candidate["box_xyxy"]),
             )
-            if result.get("class_id") is not None:
-                class_id = result["class_id"]
-                class_name = result["class_name"]
-                classify_confidence = result.get("classify_confidence")
+            top1 = result.get("top1")
+            top5 = result.get("top5", [])
+            cid = (top1.get("class_id") if top1 else None) or result.get("class_id")
+            if cid is not None:
+                class_id = cid
+                class_name = (top1.get("class_name") if top1 else None) or result["class_name"]
+                classify_confidence = (top1.get("classify_confidence") if top1 else None) or result.get("classify_confidence")
         score = candidate.get("detect_confidence", candidate["confidence"])
         score *= classify_confidence if classify_confidence is not None else 1.0
         if best is None or score > best["score"]:
@@ -140,6 +147,8 @@ def _best_candidate(candidates, video_path, artifact_dir, track_id, classifier):
                 "class_id": class_id,
                 "class_name": class_name,
                 "classify_confidence": classify_confidence,
+                "top1": top1,
+                "top5": top5,
                 "frame": frame,
                 "frame_path": frame_path,
                 "score": score,

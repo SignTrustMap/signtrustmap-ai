@@ -20,6 +20,15 @@ class SubmissionInferenceRequest(BaseModel):
     media_objects: List[MediaObjectReference] = Field(..., min_length=1)
 
 
+class SignTopCandidate(BaseModel):
+    class_id: Optional[int] = None
+    class_name: Optional[str] = None
+    confidence: float = Field(0.0, ge=0, le=1)
+    classify_confidence: Optional[float] = Field(None, ge=0, le=1)
+    standard_code: Optional[str] = None
+    name_vi: Optional[str] = None
+
+
 class SubmissionSignResult(BaseModel):
     track_id: Optional[int]
     class_id: int
@@ -27,6 +36,8 @@ class SubmissionSignResult(BaseModel):
     confidence: float = Field(..., ge=0, le=1)
     detect_confidence: float = Field(..., ge=0, le=1)
     classify_confidence: Optional[float] = Field(None, ge=0, le=1)
+    top1: Optional[SignTopCandidate] = None
+    top5: List[SignTopCandidate] = Field(default_factory=list)
     box_xyxy: tuple[float, float, float, float]
     best_frame_key: str = Field(..., min_length=1)
     sign_crop_key: str = Field(..., min_length=1)
@@ -63,6 +74,8 @@ class EarlyClassificationResponse(BaseModel):
     confidence: float = 0.0
     detect_confidence: Optional[float] = None
     classify_confidence: Optional[float] = None
+    top1: Optional[SignTopCandidate] = None
+    top5: List[SignTopCandidate] = Field(default_factory=list)
     category: Optional[str] = None
     name_vi: Optional[str] = None
     name_en: Optional[str] = None

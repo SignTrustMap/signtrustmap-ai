@@ -34,10 +34,12 @@ def infer_image(
     try:
         for index, detection in enumerate(detections):
             class_result = classification_results[index] if classification_results else {}
-            has_classification = class_result.get("class_id") is not None
-            class_id = class_result.get("class_id") if has_classification else detection["class_id"]
-            class_name = class_result.get("class_name") if has_classification else detection["class_name"]
-            classify_confidence = class_result.get("classify_confidence") if has_classification else None
+            top1 = class_result.get("top1")
+            top5 = class_result.get("top5", [])
+            has_classification = (top1 is not None and top1.get("class_id") is not None) or class_result.get("class_id") is not None
+            class_id = (top1.get("class_id") if top1 else None) or class_result.get("class_id") or detection["class_id"]
+            class_name = (top1.get("class_name") if top1 else None) or class_result.get("class_name") or detection["class_name"]
+            classify_confidence = (top1.get("classify_confidence") if top1 else None) or class_result.get("classify_confidence") if has_classification else None
             confidence = classify_confidence if classify_confidence is not None else detection["confidence"]
 
             x1, y1, x2, y2 = [int(round(value)) for value in detection["box_xyxy"]]
@@ -65,6 +67,8 @@ def infer_image(
                 "confidence": confidence,
                 "detect_confidence": detection.get("detect_confidence", detection["confidence"]),
                 "classify_confidence": classify_confidence,
+                "top1": top1,
+                "top5": top5,
                 "box_xyxy": detection["box_xyxy"],
                 "best_frame_key": source_object_key,
                 "sign_crop_key": crop_storage_key,

@@ -122,15 +122,19 @@ def _perform_early_classification(
         best_confidence = 0.0
         best_detect_conf = None
         best_classify_conf = None
+        best_top1 = None
+        best_top5 = []
 
         if detections and classifier is not None:
             crops = [classifier.crop_box(image, item["box_xyxy"]) for item in detections]
             class_results = classifier.classify_crops_batch(crops)
             for idx, item in enumerate(detections):
                 c_res = class_results[idx] if idx < len(class_results) else {}
-                cid = c_res.get("class_id", item.get("class_id"))
-                cname = c_res.get("class_name", item.get("class_name"))
-                c_conf = c_res.get("classify_confidence", 0.0)
+                top1 = c_res.get("top1")
+                top5 = c_res.get("top5", [])
+                cid = (top1.get("class_id") if top1 else None) or c_res.get("class_id", item.get("class_id"))
+                cname = (top1.get("class_name") if top1 else None) or c_res.get("class_name", item.get("class_name"))
+                c_conf = (top1.get("classify_confidence") if top1 else None) or c_res.get("classify_confidence", 0.0)
                 d_conf = item.get("confidence", 0.0)
                 conf = c_conf if c_conf > 0 else d_conf
                 meta = class_manager.get_sign_metadata(cid) if cid is not None else {}
@@ -142,6 +146,8 @@ def _perform_early_classification(
                     "confidence": conf,
                     "detect_confidence": d_conf,
                     "classify_confidence": c_conf,
+                    "top1": top1,
+                    "top5": top5,
                     "box_xyxy": tuple(item["box_xyxy"]),
                     "best_frame_key": object_key or media_url or "",
                     "sign_crop_key": object_key or media_url or "",
@@ -160,12 +166,16 @@ def _perform_early_classification(
                     best_class_name = cname
                     best_detect_conf = d_conf
                     best_classify_conf = c_conf
+                    best_top1 = top1
+                    best_top5 = top5
 
         if not signs and classifier is not None:
             c_res = classifier.classify_crop(image)
-            best_class_id = c_res.get("class_id")
-            best_class_name = c_res.get("class_name")
-            best_classify_conf = c_res.get("classify_confidence", 0.0)
+            best_top1 = c_res.get("top1")
+            best_top5 = c_res.get("top5", [])
+            best_class_id = (best_top1.get("class_id") if best_top1 else None) or c_res.get("class_id")
+            best_class_name = (best_top1.get("class_name") if best_top1 else None) or c_res.get("class_name")
+            best_classify_conf = (best_top1.get("classify_confidence") if best_top1 else None) or c_res.get("classify_confidence", 0.0)
             best_confidence = best_classify_conf
             meta = class_manager.get_sign_metadata(best_class_id) if best_class_id is not None else {}
             h, w = image.shape[:2]
@@ -177,6 +187,8 @@ def _perform_early_classification(
                 "confidence": best_confidence,
                 "detect_confidence": 0.0,
                 "classify_confidence": best_classify_conf,
+                "top1": best_top1,
+                "top5": best_top5,
                 "box_xyxy": (0.0, 0.0, float(w), float(h)),
                 "best_frame_key": object_key or media_url or "",
                 "sign_crop_key": object_key or media_url or "",
@@ -197,6 +209,8 @@ def _perform_early_classification(
             "confidence": round(best_confidence, 4),
             "detect_confidence": round(best_detect_conf, 4) if best_detect_conf is not None else None,
             "classify_confidence": round(best_classify_conf, 4) if best_classify_conf is not None else None,
+            "top1": best_top1,
+            "top5": best_top5,
             "category": meta.get("category"),
             "name_vi": meta.get("name_vi"),
             "name_en": meta.get("name_en"),

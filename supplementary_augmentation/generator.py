@@ -986,8 +986,9 @@ class SupplementaryAugmentor:
             return None, "main_sign", None, "PROHIBITORY"
 
         clf_res = self.classifier.classify_crop(crop)
-        class_id = clf_res.get("class_id")
-        class_name = clf_res.get("class_name", "main_sign")
+        top1 = clf_res.get("top1") or clf_res
+        class_id = top1.get("class_id")
+        class_name = top1.get("class_name", "main_sign")
 
         standard_code = None
         category = "PROHIBITORY"

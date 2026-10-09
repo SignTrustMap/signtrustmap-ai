@@ -455,9 +455,32 @@ class SignClassifier:
             return None
         return crop
 
-    def classify_crop(self, crop: np.ndarray) -> Dict[str, Any]:
+    def _format_prediction_item(self, idx: int, conf: float) -> Dict[str, Any]:
+        cls_id = self._class_ids[idx] if idx < len(self._class_ids) else idx
+        name = self._class_map.get(cls_id, f"class_{cls_id}")
+        meta = class_manager.get_sign_metadata(cls_id)
+        return {
+            "class_id": cls_id,
+            "class_name": name,
+            "confidence": round(conf, 4),
+            "classify_confidence": round(conf, 4),
+            "standard_code": meta.get("standard_code"),
+            "name_vi": meta.get("name_vi"),
+        }
+
+    def classify_crop(self, crop: np.ndarray, top_k: int = 5) -> Dict[str, Any]:
         if crop is None or crop.size == 0:
+            empty_item = {
+                "class_id": None,
+                "class_name": "unknown",
+                "confidence": 0.0,
+                "classify_confidence": 0.0,
+                "standard_code": None,
+                "name_vi": None,
+            }
             return {
+                "top1": empty_item,
+                "top5": [],
                 "class_id": None,
                 "class_name": "unknown",
                 "classify_confidence": 0.0,
@@ -473,30 +496,56 @@ class SignClassifier:
             b = self.timo_bias.to(device=image_features.device, dtype=image_features.dtype)
             logits = image_features @ w + b
             probabilities = logits.softmax(dim=-1)
-            values, indices = probabilities[0].topk(1)
+            k = min(top_k, probabilities.shape[-1])
+            values, indices = probabilities[0].topk(k)
 
-        idx = int(indices[0].item())
-        confidence = float(values[0].item())
-        class_id = self._class_ids[idx] if idx < len(self._class_ids) else idx
-        class_name = self._class_map.get(class_id, f"class_{class_id}")
+        top5 = [
+            self._format_prediction_item(int(indices[i].item()), float(values[i].item()))
+            for i in range(k)
+        ]
+        top1 = top5[0] if top5 else {
+            "class_id": None,
+            "class_name": "unknown",
+            "confidence": 0.0,
+            "classify_confidence": 0.0,
+            "standard_code": None,
+            "name_vi": None,
+        }
 
-        logger.trace(f"Crop classified: {class_name} ({confidence:.4f})")
+        logger.trace(f"Crop classified: {top1['class_name']} ({top1['classify_confidence']:.4f})")
         return {
-            "class_id": class_id,
-            "class_name": class_name,
-            "classify_confidence": round(confidence, 4),
+            "top1": top1,
+            "top5": top5,
+            "class_id": top1["class_id"],
+            "class_name": top1["class_name"],
+            "classify_confidence": top1["classify_confidence"],
         }
 
     def classify_crops_batch(
         self,
         crops: List[Optional[np.ndarray]],
         batch_size: int = 4,
+        top_k: int = 5,
     ) -> List[Dict[str, Any]]:
         if not crops:
             return []
 
+        empty_item = {
+            "class_id": None,
+            "class_name": "unknown",
+            "confidence": 0.0,
+            "classify_confidence": 0.0,
+            "standard_code": None,
+            "name_vi": None,
+        }
         results: List[Dict[str, Any]] = [
-            {"class_id": None, "class_name": "unknown", "classify_confidence": 0.0}
+            {
+                "top1": empty_item,
+                "top5": [],
+                "class_id": None,
+                "class_name": "unknown",
+                "classify_confidence": 0.0,
+            }
             for _ in range(len(crops))
         ]
 
@@ -524,17 +573,21 @@ class SignClassifier:
                 b = self.timo_bias.to(device=image_features.device, dtype=image_features.dtype)
                 logits = image_features @ w + b
                 probabilities = logits.softmax(dim=-1)
-                values, indices = probabilities.topk(1, dim=-1)
+                k = min(top_k, probabilities.shape[-1])
+                values, indices = probabilities.topk(k, dim=-1)
 
             for i, global_idx in enumerate(chunk_indices):
-                idx = int(indices[i][0].item())
-                conf = float(values[i][0].item())
-                cls_id = self._class_ids[idx] if idx < len(self._class_ids) else idx
-                name = self._class_map.get(cls_id, f"class_{cls_id}")
+                crop_top5 = [
+                    self._format_prediction_item(int(indices[i][rank].item()), float(values[i][rank].item()))
+                    for rank in range(k)
+                ]
+                crop_top1 = crop_top5[0] if crop_top5 else empty_item
                 results[global_idx] = {
-                    "class_id": cls_id,
-                    "class_name": name,
-                    "classify_confidence": round(conf, 4),
+                    "top1": crop_top1,
+                    "top5": crop_top5,
+                    "class_id": crop_top1["class_id"],
+                    "class_name": crop_top1["class_name"],
+                    "classify_confidence": crop_top1["classify_confidence"],
                 }
 
         logger.debug(f"Batch classification complete ({len(valid_indices)} crops).")
