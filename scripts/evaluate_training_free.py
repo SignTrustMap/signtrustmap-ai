@@ -31,7 +31,7 @@ def evaluate_predictions(logits: torch.Tensor, targets: torch.Tensor) -> Tuple[f
     mask_c20 = targets == 20
     c20_acc = (preds[mask_c20] == 20).float().mean().item() * 100.0 if mask_c20.any() else 0.0
 
-    return top1_acc, top5_acc, macro_f1, c20_acc
+    return top1_acc, top5_acc, macro_f1, c20_accáasas
 
 
 def run_evaluation():
