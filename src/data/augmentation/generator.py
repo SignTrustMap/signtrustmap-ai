@@ -120,7 +120,11 @@ TEXT_SIGN_PRESETS: Dict[str, List[Dict[str, str]]] = {
     ],
 }
 
+FONTS_DIR = Path(__file__).resolve().parents[3] / "data" / "fonts"
 FONT_CANDIDATES = [
+    str(FONTS_DIR / "DIN1451-Bahnschrift.ttf"),
+    str(FONTS_DIR / "BarlowCondensed-Bold.ttf"),
+    str(FONTS_DIR / "Barlow-Bold.ttf"),
     "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
     "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
     "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
@@ -129,8 +133,17 @@ FONT_CANDIDATES = [
 REF_SYMBOLS_DIR = Path(__file__).resolve().parents[3] / "outputs" / "symbol" / "ref_symbols"
 
 
-def _get_font(size: int) -> ImageFont.ImageFont:
-    for candidate in FONT_CANDIDATES:
+def _get_font(size: int, condensed: bool = False) -> ImageFont.ImageFont:
+    preferred = [
+        str(FONTS_DIR / "BarlowCondensed-Bold.ttf") if condensed else str(FONTS_DIR / "DIN1451-Bahnschrift.ttf"),
+        str(FONTS_DIR / "DIN1451-Bahnschrift.ttf"),
+        str(FONTS_DIR / "Barlow-Bold.ttf"),
+        str(FONTS_DIR / "BarlowCondensed-Bold.ttf"),
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
+    ]
+    for candidate in preferred:
         if os.path.exists(candidate):
             try:
                 return ImageFont.truetype(candidate, size)
@@ -146,6 +159,7 @@ def _fit_text_font(
     initial_font_size: int,
     draw: ImageDraw.ImageDraw,
     min_font_size: int = 6,
+    condensed: bool = False,
 ) -> Tuple[ImageFont.ImageFont, int, float, float]:
     font_size = max(min_font_size, initial_font_size)
     lines = [line.strip() for line in text.split("\n") if line.strip()]
@@ -153,7 +167,7 @@ def _fit_text_font(
         lines = [text]
 
     while font_size > min_font_size:
-        font = _get_font(font_size)
+        font = _get_font(font_size, condensed=condensed)
         line_w_max = 0.0
         line_h_max = 0.0
         for line in lines:
@@ -169,7 +183,7 @@ def _fit_text_font(
             break
         font_size -= 1
 
-    font = _get_font(font_size)
+    font = _get_font(font_size, condensed=condensed)
     line_w_max = 0.0
     line_h_max = 0.0
     for line in lines:
@@ -257,9 +271,16 @@ def get_compatible_supplementary_types(
     weights = [weights_dict[k] for k in candidates]
 
     chosen: List[str] = []
+    pool_cands = list(candidates)
+    pool_weights = list(weights)
     for _ in range(count):
-        pick = random.choices(candidates, weights=weights, k=1)[0]
+        if not pool_cands:
+            break
+        pick = random.choices(pool_cands, weights=pool_weights, k=1)[0]
         chosen.append(pick)
+        idx = pool_cands.index(pick)
+        pool_cands.pop(idx)
+        pool_weights.pop(idx)
     return chosen
 
 
@@ -352,10 +373,11 @@ def compute_text_sign_placement(
     )
 
 
-def render_qcvn_supplementary_sign(
+def _render_qcvn_supplementary_sign_raw(
     subclass: str,
     target_width: int,
     target_height: int,
+    used_symbols: Optional[List[str]] = None,
 ) -> Image.Image:
     scale = 2
     w = max(40, target_width * scale)
@@ -467,7 +489,12 @@ def render_qcvn_supplementary_sign(
         symbol_files = list(REF_SYMBOLS_DIR.glob("*.webp")) if REF_SYMBOLS_DIR.exists() else []
         placed_icon = False
         if symbol_files:
-            sym_file = random.choice(symbol_files)
+            available = [f for f in symbol_files if (used_symbols is None or f.name not in used_symbols)]
+            if not available:
+                available = symbol_files
+            sym_file = random.choice(available)
+            if used_symbols is not None:
+                used_symbols.append(sym_file.name)
             try:
                 sym_img = Image.open(sym_file).convert("RGBA")
                 sym_w, sym_h = sym_img.size
@@ -569,7 +596,37 @@ def render_qcvn_supplementary_sign(
     return final_img
 
 
-def render_text_sign(
+_SUPPLEMENTARY_TEMPLATE_CACHE: Dict[str, Image.Image] = {}
+
+
+def render_qcvn_supplementary_sign(
+    subclass: str,
+    target_width: int,
+    target_height: int,
+    used_symbols: Optional[List[str]] = None,
+) -> Image.Image:
+    cache_key = subclass
+    if subclass == "S.505a" and used_symbols:
+        cache_key = f"{subclass}_{'_'.join(used_symbols)}"
+    elif subclass in ["S.501", "S.502"]:
+        cache_key = f"{subclass}_{random.randint(0, 5)}"
+
+    template = _SUPPLEMENTARY_TEMPLATE_CACHE.get(cache_key)
+    if template is None:
+        template = _render_qcvn_supplementary_sign_raw(
+            subclass=subclass,
+            target_width=300,
+            target_height=180,
+            used_symbols=used_symbols,
+        )
+        _SUPPLEMENTARY_TEMPLATE_CACHE[cache_key] = template
+
+    tw = max(1, target_width)
+    th = max(1, target_height)
+    return template.resize((tw, th), Image.Resampling.BILINEAR)
+
+
+def _render_text_sign_raw(
     preset: Dict[str, str],
     target_width: int,
     target_height: int,
@@ -620,7 +677,8 @@ def render_text_sign(
     max_text_w = max(10.0, w - 2 * (margin + border_w + 8))
     max_text_h = max(10.0, h - 2 * (margin + border_w + 8))
     init_fs = max(10, int(h / (num_lines + 0.8)))
-    font, font_size, _, total_text_h = _fit_text_font(text, max_text_w, max_text_h, init_fs, draw)
+    condensed = (num_lines > 2) or any(len(l) > 14 for l in lines)
+    font, font_size, _, total_text_h = _fit_text_font(text, max_text_w, max_text_h, init_fs, draw, condensed=condensed)
 
     line_spacing = font_size * 1.25
     total_text_h = (num_lines - 1) * line_spacing + font_size
@@ -637,15 +695,45 @@ def render_text_sign(
     return final_img, text
 
 
+_TEXT_SIGN_TEMPLATE_CACHE: Dict[str, Image.Image] = {}
+
+
+def render_text_sign(
+    preset: Dict[str, str],
+    target_width: int,
+    target_height: int,
+) -> Tuple[Image.Image, str]:
+    bg = preset.get("bg", "red").lower()
+    text = preset.get("text", "")
+    cache_key = f"{bg}_{text}"
+
+    template = _TEXT_SIGN_TEMPLATE_CACHE.get(cache_key)
+    if template is None:
+        template, _ = _render_text_sign_raw(preset, target_width=360, target_height=210)
+        _TEXT_SIGN_TEMPLATE_CACHE[cache_key] = template
+
+    tw = max(1, target_width)
+    th = max(1, target_height)
+    return template.resize((tw, th), Image.Resampling.BILINEAR), text
+
+
 def apply_perspective_transform(
     patch: Image.Image,
+    tilt_ratios: Optional[Tuple[float, float, float, float]] = None,
     max_tilt_ratio: float = 0.04,
 ) -> Image.Image:
     w, h = patch.size
-    dx_top = random.uniform(-max_tilt_ratio, max_tilt_ratio) * w
-    dx_bot = random.uniform(-max_tilt_ratio, max_tilt_ratio) * w
-    dy_left = random.uniform(-max_tilt_ratio, max_tilt_ratio) * h
-    dy_right = random.uniform(-max_tilt_ratio, max_tilt_ratio) * h
+    if tilt_ratios is not None:
+        dx_top_r, dx_bot_r, dy_left_r, dy_right_r = tilt_ratios
+        dx_top = dx_top_r * w
+        dx_bot = dx_bot_r * w
+        dy_left = dy_left_r * h
+        dy_right = dy_right_r * h
+    else:
+        dx_top = random.uniform(-max_tilt_ratio, max_tilt_ratio) * w
+        dx_bot = random.uniform(-max_tilt_ratio, max_tilt_ratio) * w
+        dy_left = random.uniform(-max_tilt_ratio, max_tilt_ratio) * h
+        dy_right = random.uniform(-max_tilt_ratio, max_tilt_ratio) * h
 
     src_pts = np.float32([
         [0, 0],
@@ -673,16 +761,71 @@ def apply_perspective_transform(
     return Image.fromarray(warped_np)
 
 
+class PoleEnvironment:
+    def __init__(
+        self,
+        reference_crop: Optional[np.ndarray],
+        main_w: int,
+        main_h: int,
+    ):
+        self.tilt_ratios = (
+            random.uniform(-0.025, 0.025),
+            random.uniform(-0.025, 0.025),
+            random.uniform(-0.025, 0.025),
+            random.uniform(-0.025, 0.025),
+        )
+
+        min_dim = min(main_w, main_h)
+        if min_dim < 30:
+            self.ksize = 3
+            self.sigma = random.uniform(0.7, 1.1)
+        elif min_dim < 70:
+            self.ksize = 3
+            self.sigma = random.uniform(0.4, 0.7)
+        else:
+            self.ksize = 3
+            self.sigma = random.uniform(0.3, 0.5)
+
+        self.noise_amp = random.uniform(1.2, 2.5)
+        self.contrast_factor = random.uniform(0.96, 1.04)
+
+        self.target_mean = 160.0
+        self.tints = np.array([1.0, 1.0, 1.0], dtype=np.float32)
+
+        if reference_crop is not None and reference_crop.size > 0:
+            ref_gray = cv2.cvtColor(reference_crop, cv2.COLOR_BGR2GRAY)
+            ref_mean = float(np.mean(ref_gray))
+            self.target_mean = float(np.clip(ref_mean * 1.05, 95.0, 235.0))
+
+            b = reference_crop[:, :, 0].astype(np.float32)
+            g = reference_crop[:, :, 1].astype(np.float32)
+            r = reference_crop[:, :, 2].astype(np.float32)
+            max_c = np.maximum(np.maximum(r, g), b)
+            min_c = np.minimum(np.minimum(r, g), b)
+            chroma = max_c - min_c
+
+            neutral_mask = (chroma < 25.0) & (ref_gray > 40) & (ref_gray < 240)
+            if np.count_nonzero(neutral_mask) > 15:
+                nb = float(np.mean(b[neutral_mask]))
+                ng = float(np.mean(g[neutral_mask]))
+                nr = float(np.mean(r[neutral_mask]))
+                ntot = max(1.0, nb + ng + nr)
+                tb = (nb / ntot) * 3.0
+                tg = (ng / ntot) * 3.0
+                tr = (nr / ntot) * 3.0
+                self.tints = np.clip(np.array([tb, tg, tr], dtype=np.float32), 0.92, 1.08)
+
+
 def match_ambient_lighting(
     patch_bgr: np.ndarray,
     patch_alpha: np.ndarray,
+    pole_env: Optional[PoleEnvironment] = None,
     reference_crop: Optional[np.ndarray] = None,
 ) -> np.ndarray:
-    if reference_crop is None or reference_crop.size == 0:
-        return patch_bgr
-
-    ref_gray = cv2.cvtColor(reference_crop, cv2.COLOR_BGR2GRAY)
-    ref_mean = float(np.mean(ref_gray))
+    if pole_env is None:
+        if reference_crop is None or reference_crop.size == 0:
+            return patch_bgr
+        pole_env = PoleEnvironment(reference_crop, patch_bgr.shape[1], patch_bgr.shape[0])
 
     patch_gray = cv2.cvtColor(patch_bgr, cv2.COLOR_BGR2GRAY)
     mask = patch_alpha > 50
@@ -690,27 +833,12 @@ def match_ambient_lighting(
         return patch_bgr
 
     patch_mean = float(np.mean(patch_gray[mask]))
+    gain = float(np.clip(pole_env.target_mean / max(1.0, patch_mean), 0.70, 1.15))
 
-    target_mean = np.clip(ref_mean * 1.05, 90.0, 240.0)
-    gain = np.clip(target_mean / max(1.0, patch_mean), 0.65, 1.15)
-
-    ref_b = float(np.mean(reference_crop[:, :, 0]))
-    ref_g = float(np.mean(reference_crop[:, :, 1]))
-    ref_r = float(np.mean(reference_crop[:, :, 2]))
-    ref_total = max(1.0, ref_b + ref_g + ref_r)
-    tint_b = (ref_b / ref_total) * 3.0
-    tint_g = (ref_g / ref_total) * 3.0
-    tint_r = (ref_r / ref_total) * 3.0
-
-    tints = np.array([tint_b, tint_g, tint_r], dtype=np.float32)
-    tints = np.clip(tints, 0.85, 1.15)
-
-    adjusted = patch_bgr.astype(np.float32) * gain * tints
+    adjusted = patch_bgr.astype(np.float32) * gain * pole_env.tints
     adjusted = np.clip(adjusted, 0.0, 255.0).astype(np.uint8)
 
-    contrast_factor = random.uniform(0.90, 1.05)
-    adjusted = np.clip(128.0 + (adjusted.astype(np.float32) - 128.0) * contrast_factor, 0.0, 255.0).astype(np.uint8)
-
+    adjusted = np.clip(128.0 + (adjusted.astype(np.float32) - 128.0) * pole_env.contrast_factor, 0.0, 255.0).astype(np.uint8)
     return adjusted
 
 
@@ -719,24 +847,28 @@ def apply_degradations(
     patch_alpha: np.ndarray,
     box_w: int,
     box_h: int,
+    pole_env: Optional[PoleEnvironment] = None,
 ) -> np.ndarray:
-    min_dim = min(box_w, box_h)
-    if min_dim < 30:
-        ksize = 3
-        sigma = random.uniform(0.8, 1.3)
-    elif min_dim < 70:
-        ksize = 3
-        sigma = random.uniform(0.5, 0.9)
+    if pole_env is not None:
+        ksize = pole_env.ksize
+        sigma = pole_env.sigma
+        noise_amp = pole_env.noise_amp
     else:
-        ksize = 3
-        sigma = random.uniform(0.3, 0.6)
+        min_dim = min(box_w, box_h)
+        if min_dim < 30:
+            ksize = 3
+            sigma = random.uniform(0.7, 1.1)
+        elif min_dim < 70:
+            ksize = 3
+            sigma = random.uniform(0.4, 0.7)
+        else:
+            ksize = 3
+            sigma = random.uniform(0.3, 0.5)
+        noise_amp = random.uniform(1.2, 2.5)
 
     blurred = cv2.GaussianBlur(patch_bgr, (ksize, ksize), sigma)
-
-    noise_amp = random.uniform(1.5, 4.0)
     noise = np.random.normal(0.0, noise_amp, patch_bgr.shape).astype(np.float32)
     noisy = np.clip(blurred.astype(np.float32) + noise, 0.0, 255.0).astype(np.uint8)
-
     return noisy
 
 
@@ -745,6 +877,7 @@ def composite_sign_into_image(
     sign_patch: Image.Image,
     target_box: Tuple[int, int, int, int],
     reference_crop: Optional[np.ndarray] = None,
+    pole_env: Optional[PoleEnvironment] = None,
 ) -> Tuple[np.ndarray, Tuple[int, int, int, int]]:
     x1, y1, x2, y2 = target_box
     img_h, img_w = image_bgr.shape[:2]
@@ -759,7 +892,8 @@ def composite_sign_into_image(
     if w <= 4 or h <= 4:
         return image_bgr, (x1_c, y1_c, x2_c, y2_c)
 
-    warped_patch = apply_perspective_transform(sign_patch, max_tilt_ratio=0.03)
+    tilt_ratios = pole_env.tilt_ratios if pole_env else None
+    warped_patch = apply_perspective_transform(sign_patch, tilt_ratios=tilt_ratios)
     if (warped_patch.size[0] != w) or (warped_patch.size[1] != h):
         warped_patch = warped_patch.resize((w, h), Image.Resampling.LANCZOS)
 
@@ -768,8 +902,8 @@ def composite_sign_into_image(
     patch_bgr = cv2.cvtColor(patch_rgb, cv2.COLOR_RGB2BGR)
     patch_alpha = rgba_np[:, :, 3].astype(np.float32) / 255.0
 
-    lit_bgr = match_ambient_lighting(patch_bgr, rgba_np[:, :, 3], reference_crop)
-    deg_bgr = apply_degradations(lit_bgr, rgba_np[:, :, 3], w, h)
+    lit_bgr = match_ambient_lighting(patch_bgr, rgba_np[:, :, 3], pole_env=pole_env, reference_crop=reference_crop)
+    deg_bgr = apply_degradations(lit_bgr, rgba_np[:, :, 3], w, h, pole_env=pole_env)
 
     canvas = image_bgr.copy()
     roi = canvas[y1_c:y2_c, x1_c:x2_c]
@@ -941,8 +1075,78 @@ def check_patch_suspicion(
     red_m1 = cv2.inRange(hsv, np.array([0, 80, 70]), np.array([10, 255, 255]))
     red_m2 = cv2.inRange(hsv, np.array([170, 80, 70]), np.array([180, 255, 255]))
     saturated_color_ratio = float(np.count_nonzero(blue_m | yellow_m | red_m1 | red_m2)) / float(tw * th)
-    if saturated_color_ratio >= 0.30:
+    if saturated_color_ratio >= 0.45:
         return True
+    return False
+
+
+def has_other_main_sign_below(
+    current_box: List[float],
+    all_boxes: List[List[float]],
+    current_idx: int,
+) -> bool:
+    x1, y1, x2, y2 = current_box[:4]
+    w = max(1.0, float(x2 - x1))
+    h = max(1.0, float(y2 - y1))
+    cx = (x1 + x2) / 2.0
+    cy = (y1 + y2) / 2.0
+
+    for j, o_box in enumerate(all_boxes):
+        if j == current_idx:
+            continue
+        ox1, oy1, ox2, oy2 = o_box[:4]
+        ow = max(1.0, float(ox2 - ox1))
+        oh = max(1.0, float(oy2 - oy1))
+        ocx = (ox1 + ox2) / 2.0
+        ocy = (oy1 + oy2) / 2.0
+
+        if not (0.35 <= (w / ow) <= 2.85):
+            continue
+
+        if abs(cx - ocx) > 0.70 * max(w, ow):
+            continue
+
+        horiz_overlap = min(x2, ox2) - max(x1, ox1)
+        if horiz_overlap < -0.20 * min(w, ow):
+            continue
+
+        if ocy - cy < 0.25 * min(h, oh):
+            continue
+
+        if oy2 <= y2 + 0.15 * min(h, oh):
+            continue
+
+        vert_gap = oy1 - y2
+        if -0.30 * h <= vert_gap <= 1.50 * max(h, oh):
+            return True
+
+    return False
+
+
+def is_target_colliding_with_main_signs(
+    target_box: Tuple[int, int, int, int],
+    all_boxes: List[List[float]],
+    current_idx: int,
+    overlap_thresh: float = 0.45,
+) -> bool:
+    tx1, ty1, tx2, ty2 = target_box
+    t_area = float((tx2 - tx1) * (ty2 - ty1))
+    if t_area <= 0:
+        return True
+
+    for j, o_box in enumerate(all_boxes):
+        if j == current_idx:
+            continue
+        ox1, oy1, ox2, oy2 = [int(round(c)) for c in o_box[:4]]
+        ix1 = max(tx1, ox1)
+        iy1 = max(ty1, oy1)
+        ix2 = min(tx2, ox2)
+        iy2 = min(ty2, oy2)
+        if ix2 > ix1 and iy2 > iy1:
+            inter_area = float((ix2 - ix1) * (iy2 - iy1))
+            if (inter_area / t_area) > overlap_thresh:
+                return True
+
     return False
 
 
@@ -951,14 +1155,20 @@ class SupplementaryAugmentor:
         self,
         classifier: Optional[SignClassifier] = None,
         sampling_probs: Optional[Dict[str, float]] = None,
+        supp_class_id: int = 100,
+        text_class_id: int = 101,
+        preserve_main_class_id: bool = True,
     ):
         self.classifier = classifier
         self.sampling_probs = sampling_probs or {
             "none": 0.50,
-            "supplementary_1": 0.35,
+            "supplementary_1": 0.25,
             "supplementary_2": 0.10,
-            "text_sign": 0.05,
+            "text_sign": 0.15,
         }
+        self.supp_class_id = supp_class_id
+        self.text_class_id = text_class_id
+        self.preserve_main_class_id = preserve_main_class_id
         self.last_rejected: List[Dict[str, Any]] = []
 
     def _sample_mode(self, forced_mode: Optional[str] = None) -> str:
@@ -1025,7 +1235,7 @@ class SupplementaryAugmentor:
 
             output_labels.append({
                 "class": "main_sign",
-                "class_id": 0,
+                "class_id": class_id if (self.preserve_main_class_id and class_id is not None) else 0,
                 "bbox": [x1, y1, x2, y2],
                 "standard_code": standard_code,
                 "class_name": class_name,
@@ -1033,6 +1243,16 @@ class SupplementaryAugmentor:
 
             mode = self._sample_mode(forced_mode=forced_mode)
             if mode == "none":
+                continue
+
+            if has_other_main_sign_below([x1, y1, x2, y2], main_boxes, i):
+                logger.trace(f"Anchor {[x1, y1, x2, y2]} skipped: has other main sign below on same pole.")
+                self.last_rejected.append({
+                    "main_box": [x1, y1, x2, y2],
+                    "standard_code": standard_code,
+                    "class_name": class_name,
+                    "reason": "has_main_sign_below",
+                })
                 continue
 
             is_clean, reject_reason, roi_box, metrics = check_lower_roi_occupancy(canvas, [x1, y1, x2, y2])
@@ -1049,6 +1269,12 @@ class SupplementaryAugmentor:
                 continue
 
             px_per_mm = estimate_pixel_scale([x1, y1, x2, y2], standard_code=standard_code)
+            pole_env = PoleEnvironment(
+                reference_crop=crop,
+                main_w=x2 - x1,
+                main_h=y2 - y1,
+            )
+            used_symbols: List[str] = []
 
             if mode in ["supplementary_1", "supplementary_2"]:
                 count = 1 if mode == "supplementary_1" else 2
@@ -1079,6 +1305,18 @@ class SupplementaryAugmentor:
                     if target_box[3] > img_h + 10 or tb_w <= 4 or tb_h <= 4:
                         break
 
+                    if is_target_colliding_with_main_signs(target_box, main_boxes, i, overlap_thresh=0.45):
+                        logger.debug(f"Target box {target_box} collides with another main sign. Skipping paste.")
+                        self.last_rejected.append({
+                            "main_box": [x1, y1, x2, y2],
+                            "standard_code": standard_code,
+                            "class_name": class_name,
+                            "roi_box": list(target_box),
+                            "reason": "collision_with_other_main_sign",
+                            "metrics": {},
+                        })
+                        break
+
                     if check_patch_suspicion(canvas, target_box):
                         logger.debug(f"Target box {target_box} suspicious. Skipping paste.")
                         self.last_rejected.append({
@@ -1095,6 +1333,7 @@ class SupplementaryAugmentor:
                         subclass=supp_type,
                         target_width=tb_w,
                         target_height=tb_h,
+                        used_symbols=used_symbols,
                     )
 
                     canvas, final_box = composite_sign_into_image(
@@ -1102,11 +1341,12 @@ class SupplementaryAugmentor:
                         sign_patch=sign_img,
                         target_box=target_box,
                         reference_crop=crop,
+                        pole_env=pole_env,
                     )
 
                     output_labels.append({
                         "class": "supplementary_sign",
-                        "class_id": 1,
+                        "class_id": self.supp_class_id,
                         "bbox": list(final_box),
                         "subclass": supp_type,
                         "parent_box": [x1, y1, x2, y2],
@@ -1129,6 +1369,18 @@ class SupplementaryAugmentor:
                 tb_h = target_box[3] - target_box[1]
 
                 if target_box[3] <= img_h + 10 and tb_w > 4 and tb_h > 4:
+                    if is_target_colliding_with_main_signs(target_box, main_boxes, i, overlap_thresh=0.45):
+                        logger.debug(f"Target box {target_box} collides with another main sign. Skipping paste.")
+                        self.last_rejected.append({
+                            "main_box": [x1, y1, x2, y2],
+                            "standard_code": standard_code,
+                            "class_name": class_name,
+                            "roi_box": list(target_box),
+                            "reason": "collision_with_other_main_sign",
+                            "metrics": {},
+                        })
+                        continue
+
                     if check_patch_suspicion(canvas, target_box):
                         logger.debug(f"Target box {target_box} suspicious. Skipping paste.")
                         self.last_rejected.append({
@@ -1152,11 +1404,12 @@ class SupplementaryAugmentor:
                         sign_patch=sign_img,
                         target_box=target_box,
                         reference_crop=crop,
+                        pole_env=pole_env,
                     )
 
                     output_labels.append({
                         "class": "text_sign",
-                        "class_id": 2,
+                        "class_id": self.text_class_id,
                         "bbox": list(final_box),
                         "text": text_str,
                         "bg": preset.get("bg", "red"),

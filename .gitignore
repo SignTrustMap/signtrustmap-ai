@@ -120,7 +120,7 @@ kaggle_upload/
 
 runs
 outputs
-configs/
+configs/*
 !configs/training/
 deploy/*.service
 deploy/setup_services.sh

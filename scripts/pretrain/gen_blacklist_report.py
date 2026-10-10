@@ -715,7 +715,7 @@ def main() -> None:
     _, names, blacklisted = parse_dataset_yaml(args.data_yaml)
 
     dfg_classes = {cid: name for cid, name in names.items() if 0 <= cid < 200}
-    mtsd_classes = {cid: name for cid, name in names.items() if 300 <= cid <= 700}
+    mtsd_classes = {cid: name for cid, name in names.items() if 302 <= cid <= 702}
 
     logger.info(f"Loaded {len(dfg_classes)} DFG classes and {len(mtsd_classes)} MTSD classes.")
 

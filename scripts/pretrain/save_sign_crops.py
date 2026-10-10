@@ -47,8 +47,8 @@ def parse_dataset_yaml(yaml_path: str) -> tuple[str, list[str], dict[int, str]]:
 def get_dataset_info(names: dict[int, str]) -> list[tuple[str, int, int]]:
     datasets = [
         ("DFG", 0, 200),
-        ("VTSDB100", 200, 100),
-        ("MTSD", 300, 401),
+        ("SynSTM", 200, 102),
+        ("MTSD", 302, 401),
     ]
     return datasets
 
