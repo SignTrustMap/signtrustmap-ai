@@ -1,10 +1,12 @@
 import os
-from src.training import monkeypatch
-import yaml
+import numpy as np
+import ultralytics.data.utils as data_utils
 from loguru import logger
+from ultralytics import YOLO
+from ultralytics.data.base import BaseDataset
+from src.training import monkeypatch
 
 os.environ["MPLBACKEND"] = "Agg"
-from ultralytics import YOLO
 
 dataset_yaml_path = "configs/training/all.yaml"
 active_classes = []
@@ -15,17 +17,50 @@ with open(dataset_yaml_path, "r") as f:
             parts = line.strip().split(":")
             if len(parts) >= 2:
                 try:
-                    class_id = int(parts[0].strip())
-                    active_classes.append(class_id)
+                    active_classes.append(int(parts[0].strip()))
                 except ValueError:
                     pass
+
+_orig_check = data_utils.check_det_dataset
+
+
+def _patched_check(dataset, autodownload=True):
+    data = _orig_check(dataset, autodownload=autodownload)
+    if isinstance(data, dict):
+        data["names"] = {0: "main_sign", 1: "supplementary_sign", 2: "text_sign"}
+        data["nc"] = 3
+    return data
+
+
+data_utils.check_det_dataset = _patched_check
+
+_orig_patched_update = BaseDataset.update_labels
+
+
+def _patched_3cls_labels(self, include_class=None):
+    _orig_patched_update(self, active_classes)
+    for label in self.labels:
+        cls_arr = label["cls"]
+        if cls_arr.size == 0:
+            continue
+        new_cls = []
+        for c in cls_arr.flatten():
+            c = int(c)
+            if c == 300 or (302 <= c <= 346):
+                new_cls.append(1)
+            elif c == 301 or (673 <= c <= 675):
+                new_cls.append(2)
+            else:
+                new_cls.append(0)
+        label["cls"] = np.array(new_cls, dtype=cls_arr.dtype).reshape(-1, 1)
+
+
+BaseDataset.update_labels = _patched_3cls_labels
 
 model = YOLO("weights/yolo26n.pt")
 
 results = model.train(
     data=dataset_yaml_path,
-    classes=active_classes,
-    single_cls=True,
     epochs=100,
     batch=128,
     imgsz=640,
@@ -33,7 +68,7 @@ results = model.train(
     workers=8,
     cache='disk',
     project="runs/pretrain",
-    name="yolo26n",
+    name="yolo26n_3cls",
     optimizer="auto",
     save=True,
     pretrained=True,
@@ -48,8 +83,6 @@ results = model.train(
 test_results = model.val(
     data=dataset_yaml_path,
     split="test",
-    classes=active_classes,
-    single_cls=True,
     batch=512,
     imgsz=640,
     device=[0],
