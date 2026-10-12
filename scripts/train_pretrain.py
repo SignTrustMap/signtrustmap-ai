@@ -1,12 +1,15 @@
 import os
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+os.environ["MPLBACKEND"] = "Agg"
 import numpy as np
 import ultralytics.data.utils as data_utils
 from loguru import logger
 from ultralytics import YOLO
 from ultralytics.data.base import BaseDataset
 from src.training import monkeypatch
-
-os.environ["MPLBACKEND"] = "Agg"
 
 dataset_yaml_path = "configs/training/all.yaml"
 active_classes = []
