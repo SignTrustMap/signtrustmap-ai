@@ -6,6 +6,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 os.environ["MPLBACKEND"] = "Agg"
 import numpy as np
 import ultralytics.data.utils as data_utils
+import ultralytics.engine.exporter as exporter
+import ultralytics.engine.trainer as trainer
+import ultralytics.engine.validator as validator
 from loguru import logger
 from ultralytics import YOLO
 from ultralytics.data.base import BaseDataset
@@ -36,6 +39,9 @@ def _patched_check(dataset, autodownload=True):
 
 
 data_utils.check_det_dataset = _patched_check
+trainer.check_det_dataset = _patched_check
+validator.check_det_dataset = _patched_check
+exporter.check_det_dataset = _patched_check
 
 _orig_patched_update = BaseDataset.update_labels
 
@@ -60,37 +66,38 @@ def _patched_3cls_labels(self, include_class=None):
 
 BaseDataset.update_labels = _patched_3cls_labels
 
-model = YOLO("weights/yolo26n.pt")
+if __name__ == "__main__":
+    model = YOLO("weights/yolo26n.pt")
 
-results = model.train(
-    data=dataset_yaml_path,
-    epochs=100,
-    batch=128,
-    imgsz=640,
-    device=[0],
-    workers=8,
-    cache='disk',
-    project="runs/pretrain",
-    name="yolo26n_3cls",
-    optimizer="auto",
-    save=True,
-    pretrained=True,
-    plots=True,
-    channels_last=True,
-    compile=True,
-    fliplr=0.0,
-    flipud=0.0,
-    degrees=10.0,
-)
+    results = model.train(
+        data=dataset_yaml_path,
+        epochs=100,
+        batch=128,
+        imgsz=640,
+        device=[0],
+        workers=8,
+        cache="disk",
+        project="runs/pretrain",
+        name="yolo26n_3cls",
+        optimizer="auto",
+        save=True,
+        pretrained=True,
+        plots=True,
+        channels_last=True,
+        compile=True,
+        fliplr=0.0,
+        flipud=0.0,
+        degrees=10.0,
+    )
 
-test_results = model.val(
-    data=dataset_yaml_path,
-    split="test",
-    batch=512,
-    imgsz=640,
-    device=[0],
-    workers=8,
-    plots=True,
-)
+    test_results = model.val(
+        data=dataset_yaml_path,
+        split="test",
+        batch=512,
+        imgsz=640,
+        device=[0],
+        workers=8,
+        plots=True,
+    )
 
-logger.info(f"Test Results: {test_results.results_dict}")
+    logger.info(f"Test Results: {test_results.results_dict}")
