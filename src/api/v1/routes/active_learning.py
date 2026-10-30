@@ -156,7 +156,7 @@ async def rebuild_classifier_weights(
         if classifier is None:
             raise RuntimeError("Classifier model is not loaded in model_manager.")
 
-        ckpt_path = few_shot_manager.build_and_save_timo_classifier(device=classifier.device)
+        ckpt_path = few_shot_manager.build_and_save_timo_classifier(device="cpu")
         ckpt = torch.load(ckpt_path, map_location=classifier.device)
         w, b = classifier.hot_reload_timo(ckpt["weights"], ckpt["bias"])
 
