@@ -1,4 +1,6 @@
 import os
+from pathlib import Path
+import yaml
 import torch
 import ultralytics.optim.muon
 from loguru import logger
@@ -59,6 +61,21 @@ def _get_dataset_root_and_name(p: str, data_root: str) -> tuple[str, str]:
         root_dir = parent
     return root_dir, os.path.basename(root_dir)
 
+def _get_dataset_nc(dname: str, yaml_file: str | None) -> int:
+    defaults = {"DFG": 200, "SynSTM": 102, "MTSD": 401}
+    if yaml_file:
+        p = Path(yaml_file).parent / "datasets" / f"{dname}.yaml"
+        if p.is_file():
+            try:
+                with open(p, "r", encoding="utf-8") as f:
+                    data = yaml.safe_load(f)
+                    if isinstance(data, dict) and "names" in data:
+                        return len(data["names"])
+            except Exception:
+                pass
+    return defaults.get(dname, 0)
+
+
 def _patched_update_labels(self, include_class: list[int] | None) -> None:
     yaml_file = self.data.get("yaml_file")
     if yaml_file and yaml_file.endswith("all.yaml"):
@@ -80,7 +97,7 @@ def _patched_update_labels(self, include_class: list[int] | None) -> None:
             current_offset = 0
             for dname in dataset_names:
                 offsets[dname] = current_offset
-                nc = max_cls_per_dataset.get(dname, -1) + 1
+                nc = max(_get_dataset_nc(dname, yaml_file), max_cls_per_dataset.get(dname, -1) + 1)
                 current_offset += nc
 
             sep = os.sep
