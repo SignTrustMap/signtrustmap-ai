@@ -492,9 +492,9 @@ class SignClassifier:
         with torch.inference_mode():
             image_features = self.model.encode_image(img_tensor)
             image_features = image_features / torch.clamp(image_features.norm(dim=-1, keepdim=True), min=1e-8)
-            w = self.timo_weights.to(device=image_features.device, dtype=image_features.dtype)
-            b = self.timo_bias.to(device=image_features.device, dtype=image_features.dtype)
-            logits = image_features @ w + b
+            w = self.timo_weights.cpu()
+            b = self.timo_bias.cpu()
+            logits = image_features.cpu() @ w + b
             probabilities = logits.softmax(dim=-1)
             k = min(top_k, probabilities.shape[-1])
             values, indices = probabilities[0].topk(k)
@@ -569,9 +569,9 @@ class SignClassifier:
             with torch.inference_mode():
                 image_features = self.model.encode_image(batch_tensor)
                 image_features = image_features / torch.clamp(image_features.norm(dim=-1, keepdim=True), min=1e-8)
-                w = self.timo_weights.to(device=image_features.device, dtype=image_features.dtype)
-                b = self.timo_bias.to(device=image_features.device, dtype=image_features.dtype)
-                logits = image_features @ w + b
+                w = self.timo_weights.cpu()
+                b = self.timo_bias.cpu()
+                logits = image_features.cpu() @ w + b
                 probabilities = logits.softmax(dim=-1)
                 k = min(top_k, probabilities.shape[-1])
                 values, indices = probabilities.topk(k, dim=-1)

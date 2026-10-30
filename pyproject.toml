@@ -60,6 +60,14 @@ torchvision = [
     { index = "pypi", marker = "platform_machine != 'aarch64' or sys_platform != 'linux'" }
 ]
 
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+    "pytest-asyncio>=1.4.1",
+    "pytest-cov>=7.1.0",
+    "pytest-mock>=3.17.0",
+]
+
 [tool.uv]
 index-strategy = "unsafe-best-match"
 environments = [
@@ -72,4 +80,9 @@ required-environments = [
     "platform_machine == 'x86_64' and sys_platform == 'linux'",
     "sys_platform == 'win32' and platform_machine == 'AMD64'"
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
 

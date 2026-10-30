@@ -1,0 +1,35 @@
+<?xml version='1.0' encoding='utf-8'?>
+<gpx version="1.1" creator="SignTrustMap" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <trkseg>
+      <trkpt lat="10.7375955" lon="106.7300928">
+        <ele>34.45</ele>
+        <time>2026-07-04T22:58:03.863000Z</time>
+      </trkpt>
+      <trkpt lat="10.7375933" lon="106.7300967">
+        <ele>34.40</ele>
+        <time>2026-07-04T22:58:04.000000Z</time>
+      </trkpt>
+      <trkpt lat="10.7375683" lon="106.7301783">
+        <ele>68.00</ele>
+        <time>2026-07-04T22:58:06.000000Z</time>
+      </trkpt>
+      <trkpt lat="10.7374917" lon="106.7302550">
+        <ele>82.80</ele>
+        <time>2026-07-04T22:58:08.000000Z</time>
+      </trkpt>
+      <trkpt lat="10.7373900" lon="106.7303433">
+        <ele>87.00</ele>
+        <time>2026-07-04T22:58:09.000000Z</time>
+      </trkpt>
+      <trkpt lat="10.7373167" lon="106.7303567">
+        <ele>87.40</ele>
+        <time>2026-07-04T22:58:10.000000Z</time>
+      </trkpt>
+      <trkpt lat="10.7372706" lon="106.7303782">
+        <ele>88.26</ele>
+        <time>2026-07-04T22:58:10.863000Z</time>
+      </trkpt>
+    </trkseg>
+  </trk>
+</gpx>

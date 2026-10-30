@@ -5,16 +5,22 @@ import threading
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from loguru import logger
 from src.core.config_manager import config_manager
 
 
 class ActiveLearningStore:
-    def __init__(self):
+    def __init__(self, custom_path: Optional[Union[str, Path]] = None):
         self._lock = threading.Lock()
+        self._custom_path: Optional[Path] = Path(custom_path) if custom_path else None
+
+    def set_store_path(self, path: Optional[Union[str, Path]]) -> None:
+        self._custom_path = Path(path) if path else None
 
     def get_file_path(self) -> Path:
+        if self._custom_path is not None:
+            return self._custom_path
         raw_path = config_manager.get("active_learning.dataset_store_path", "runs/active_learning/dataset.json")
         base_dir = Path(__file__).resolve().parent.parent.parent.parent
         resolved = Path(raw_path)

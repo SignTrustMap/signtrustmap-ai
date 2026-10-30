@@ -1,0 +1,71 @@
+{
+  "video_path": "clip_000505.mp4",
+  "total_frames": 169,
+  "fps": 23.98,
+  "camera_intrinsics": {
+    "focal_px": 867.43,
+    "hfov_deg": 95.8,
+    "image_width": 1920,
+    "image_height": 1080
+  },
+  "verified_tracks_count": 3,
+  "tracks": [
+    {
+      "track_id": 1,
+      "standard_code": "P.131a",
+      "class_id": 20,
+      "class_name": "No_parking",
+      "name_vi": "Cấm đỗ xe",
+      "frame_range": [
+        43,
+        104
+      ],
+      "best_frame_idx": 98,
+      "max_detect_conf": 0.9473,
+      "best_box_xyxy": [
+        1224.42,
+        180.79,
+        1340.55,
+        290.19
+      ]
+    },
+    {
+      "track_id": 2,
+      "standard_code": "P.114",
+      "class_id": 47,
+      "class_name": "No_animal_drawn_vehicles",
+      "name_vi": "Cấm xe súc vật kéo / xe thô sơ / ba gác",
+      "frame_range": [
+        44,
+        107
+      ],
+      "best_frame_idx": 101,
+      "max_detect_conf": 0.9497,
+      "best_box_xyxy": [
+        1278.26,
+        228.19,
+        1420.55,
+        361.8
+      ]
+    },
+    {
+      "track_id": 3,
+      "standard_code": "I.434a",
+      "class_id": 44,
+      "class_name": "Bus_stop",
+      "name_vi": "Trạm dừng xe buýt",
+      "frame_range": [
+        120,
+        168
+      ],
+      "best_frame_idx": 159,
+      "max_detect_conf": 0.9316,
+      "best_box_xyxy": [
+        1112.11,
+        384.2,
+        1178.71,
+        468.11
+      ]
+    }
+  ]
+}
