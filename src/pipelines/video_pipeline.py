@@ -78,6 +78,7 @@ def infer_video(
                 "classify_confidence": classify_confidence,
                 "top1": best.get("top1"),
                 "top5": best.get("top5", []),
+                "all_predictions": best.get("all_predictions", []),
                 "box_xyxy": candidate["box_xyxy"],
                 "best_frame_key": frame_storage_key,
                 "sign_crop_key": crop_storage_key,
@@ -128,12 +129,14 @@ def _best_candidate(candidates, video_path, artifact_dir, track_id, classifier):
         classify_confidence = None
         top1 = None
         top5 = []
+        all_predictions = []
         if classifier is not None:
             result = classifier.classify_crop(
                 classifier.crop_box(frame, candidate["box_xyxy"]),
             )
             top1 = result.get("top1")
             top5 = result.get("top5", [])
+            all_predictions = result.get("all_predictions", [])
             cid = (top1.get("class_id") if top1 else None) or result.get("class_id")
             if cid is not None:
                 class_id = cid
@@ -149,6 +152,7 @@ def _best_candidate(candidates, video_path, artifact_dir, track_id, classifier):
                 "classify_confidence": classify_confidence,
                 "top1": top1,
                 "top5": top5,
+                "all_predictions": all_predictions,
                 "frame": frame,
                 "frame_path": frame_path,
                 "score": score,

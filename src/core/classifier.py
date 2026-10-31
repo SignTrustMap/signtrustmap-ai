@@ -481,6 +481,7 @@ class SignClassifier:
             return {
                 "top1": empty_item,
                 "top5": [],
+                "all_predictions": [],
                 "class_id": None,
                 "class_name": "unknown",
                 "classify_confidence": 0.0,
@@ -496,13 +497,15 @@ class SignClassifier:
             b = self.timo_bias.cpu()
             logits = image_features.cpu() @ w + b
             probabilities = logits.softmax(dim=-1)
-            k = min(top_k, probabilities.shape[-1])
-            values, indices = probabilities[0].topk(k)
+            num_classes = probabilities.shape[-1]
+            all_values, all_indices = probabilities[0].topk(num_classes)
+            k = min(top_k, num_classes)
 
-        top5 = [
-            self._format_prediction_item(int(indices[i].item()), float(values[i].item()))
-            for i in range(k)
+        all_predictions = [
+            self._format_prediction_item(int(all_indices[i].item()), float(all_values[i].item()))
+            for i in range(num_classes)
         ]
+        top5 = all_predictions[:k]
         top1 = top5[0] if top5 else {
             "class_id": None,
             "class_name": "unknown",
@@ -516,6 +519,7 @@ class SignClassifier:
         return {
             "top1": top1,
             "top5": top5,
+            "all_predictions": all_predictions,
             "class_id": top1["class_id"],
             "class_name": top1["class_name"],
             "classify_confidence": top1["classify_confidence"],
@@ -542,6 +546,7 @@ class SignClassifier:
             {
                 "top1": empty_item,
                 "top5": [],
+                "all_predictions": [],
                 "class_id": None,
                 "class_name": "unknown",
                 "classify_confidence": 0.0,
@@ -573,18 +578,21 @@ class SignClassifier:
                 b = self.timo_bias.cpu()
                 logits = image_features.cpu() @ w + b
                 probabilities = logits.softmax(dim=-1)
-                k = min(top_k, probabilities.shape[-1])
-                values, indices = probabilities.topk(k, dim=-1)
+                num_classes = probabilities.shape[-1]
+                all_values, all_indices = probabilities.topk(num_classes, dim=-1)
+                k = min(top_k, num_classes)
 
             for i, global_idx in enumerate(chunk_indices):
-                crop_top5 = [
-                    self._format_prediction_item(int(indices[i][rank].item()), float(values[i][rank].item()))
-                    for rank in range(k)
+                crop_all = [
+                    self._format_prediction_item(int(all_indices[i][rank].item()), float(all_values[i][rank].item()))
+                    for rank in range(num_classes)
                 ]
+                crop_top5 = crop_all[:k]
                 crop_top1 = crop_top5[0] if crop_top5 else empty_item
                 results[global_idx] = {
                     "top1": crop_top1,
                     "top5": crop_top5,
+                    "all_predictions": crop_all,
                     "class_id": crop_top1["class_id"],
                     "class_name": crop_top1["class_name"],
                     "classify_confidence": crop_top1["classify_confidence"],

@@ -124,6 +124,7 @@ def _perform_early_classification(
         best_classify_conf = None
         best_top1 = None
         best_top5 = []
+        best_all_predictions = []
 
         if detections and classifier is not None:
             crops = [classifier.crop_box(image, item["box_xyxy"]) for item in detections]
@@ -132,6 +133,7 @@ def _perform_early_classification(
                 c_res = class_results[idx] if idx < len(class_results) else {}
                 top1 = c_res.get("top1")
                 top5 = c_res.get("top5", [])
+                all_predictions = c_res.get("all_predictions", [])
                 cid = (top1.get("class_id") if top1 else None) or c_res.get("class_id", item.get("class_id"))
                 cname = (top1.get("class_name") if top1 else None) or c_res.get("class_name", item.get("class_name"))
                 c_conf = (top1.get("classify_confidence") if top1 else None) or c_res.get("classify_confidence", 0.0)
@@ -148,6 +150,7 @@ def _perform_early_classification(
                     "classify_confidence": c_conf,
                     "top1": top1,
                     "top5": top5,
+                    "all_predictions": all_predictions,
                     "box_xyxy": tuple(item["box_xyxy"]),
                     "best_frame_key": object_key or media_url or "",
                     "sign_crop_key": object_key or media_url or "",
@@ -168,11 +171,13 @@ def _perform_early_classification(
                     best_classify_conf = c_conf
                     best_top1 = top1
                     best_top5 = top5
+                    best_all_predictions = all_predictions
 
         if not signs and classifier is not None:
             c_res = classifier.classify_crop(image)
             best_top1 = c_res.get("top1")
             best_top5 = c_res.get("top5", [])
+            best_all_predictions = c_res.get("all_predictions", [])
             best_class_id = (best_top1.get("class_id") if best_top1 else None) or c_res.get("class_id")
             best_class_name = (best_top1.get("class_name") if best_top1 else None) or c_res.get("class_name")
             best_classify_conf = (best_top1.get("classify_confidence") if best_top1 else None) or c_res.get("classify_confidence", 0.0)
@@ -189,6 +194,7 @@ def _perform_early_classification(
                 "classify_confidence": best_classify_conf,
                 "top1": best_top1,
                 "top5": best_top5,
+                "all_predictions": best_all_predictions,
                 "box_xyxy": (0.0, 0.0, float(w), float(h)),
                 "best_frame_key": object_key or media_url or "",
                 "sign_crop_key": object_key or media_url or "",
@@ -211,6 +217,7 @@ def _perform_early_classification(
             "classify_confidence": round(best_classify_conf, 4) if best_classify_conf is not None else None,
             "top1": best_top1,
             "top5": best_top5,
+            "all_predictions": best_all_predictions,
             "category": meta.get("category"),
             "name_vi": meta.get("name_vi"),
             "name_en": meta.get("name_en"),

@@ -38,6 +38,7 @@ class SubmissionSignResult(BaseModel):
     classify_confidence: Optional[float] = Field(None, ge=0, le=1)
     top1: Optional[SignTopCandidate] = None
     top5: List[SignTopCandidate] = Field(default_factory=list)
+    all_predictions: List[SignTopCandidate] = Field(default_factory=list)
     box_xyxy: tuple[float, float, float, float]
     best_frame_key: str = Field(..., min_length=1)
     sign_crop_key: str = Field(..., min_length=1)
@@ -76,6 +77,7 @@ class EarlyClassificationResponse(BaseModel):
     classify_confidence: Optional[float] = None
     top1: Optional[SignTopCandidate] = None
     top5: List[SignTopCandidate] = Field(default_factory=list)
+    all_predictions: List[SignTopCandidate] = Field(default_factory=list)
     category: Optional[str] = None
     name_vi: Optional[str] = None
     name_en: Optional[str] = None
