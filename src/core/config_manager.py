@@ -99,6 +99,7 @@ class ConfigManager:
             "classifier": {
                 "active_model": classifier_fallback,
                 "default_conf": 0.6,
+                "temperature": 7.0,
                 "prompt_template": settings.CLASSIFIER_PROMPT_TEMPLATE,
             },
             "system": {
@@ -223,6 +224,10 @@ class ConfigManager:
     @property
     def default_classifier_conf(self) -> float:
         return float(self.get("classifier.default_conf", 0.6))
+
+    @property
+    def classifier_temperature(self) -> float:
+        return float(self.get("classifier.temperature", 7.0))
 
     @property
     def classifier_prompt_template(self) -> str:

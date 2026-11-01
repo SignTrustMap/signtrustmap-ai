@@ -38,7 +38,9 @@ def infer_image(
             top5 = class_result.get("top5", [])
             all_predictions = class_result.get("all_predictions", [])
             has_classification = (top1 is not None and top1.get("class_id") is not None) or class_result.get("class_id") is not None
-            class_id = (top1.get("class_id") if top1 else None) or class_result.get("class_id") or detection["class_id"]
+            top1_cid = top1.get("class_id") if top1 else None
+            cres_cid = class_result.get("class_id")
+            class_id = top1_cid if top1_cid is not None else (cres_cid if cres_cid is not None else detection["class_id"])
             class_name = (top1.get("class_name") if top1 else None) or class_result.get("class_name") or detection["class_name"]
             classify_confidence = (top1.get("classify_confidence") if top1 else None) or class_result.get("classify_confidence") if has_classification else None
             confidence = classify_confidence if classify_confidence is not None else detection["confidence"]

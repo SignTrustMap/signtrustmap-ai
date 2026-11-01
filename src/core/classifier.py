@@ -16,6 +16,7 @@ import clip
 import open_clip
 from src.core.config import settings
 from src.core.class_manager import class_manager
+from src.core.config_manager import config_manager
 from src.core.few_shot_manager import few_shot_manager
 from src.infrastructure.minio_client import minio_client
 
@@ -72,6 +73,7 @@ class SignClassifier:
         self.device = self._resolve_device(device)
         self.prompt_template = prompt_template or settings.CLASSIFIER_PROMPT_TEMPLATE
         self.weights_path = self._resolve_weights_path(weights_path)
+        self.temperature = float(config_manager.classifier_temperature)
         self._is_mobileclip = False
         self._tokenizer = None
         self._class_map = class_manager.get_classes_map()
@@ -496,7 +498,8 @@ class SignClassifier:
             w = self.timo_weights.cpu()
             b = self.timo_bias.cpu()
             logits = image_features.cpu() @ w + b
-            probabilities = logits.softmax(dim=-1)
+            scaled_logits = logits / max(1e-4, self.temperature)
+            probabilities = scaled_logits.softmax(dim=-1)
             num_classes = probabilities.shape[-1]
             all_values, all_indices = probabilities[0].topk(num_classes)
             k = min(top_k, num_classes)
@@ -577,7 +580,8 @@ class SignClassifier:
                 w = self.timo_weights.cpu()
                 b = self.timo_bias.cpu()
                 logits = image_features.cpu() @ w + b
-                probabilities = logits.softmax(dim=-1)
+                scaled_logits = logits / max(1e-4, self.temperature)
+                probabilities = scaled_logits.softmax(dim=-1)
                 num_classes = probabilities.shape[-1]
                 all_values, all_indices = probabilities.topk(num_classes, dim=-1)
                 k = min(top_k, num_classes)
