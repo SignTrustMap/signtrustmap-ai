@@ -11,6 +11,7 @@ from src.core.config_manager import config_manager
 from src.core.model_manager import model_manager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from scalar_fastapi import add_scalar_reference
 import uvicorn
 from src.api.router import api_router
 
@@ -24,7 +25,8 @@ async def lifespan(app: FastAPI):
     model_manager.unload_all()
 
 
-app = FastAPI(title="SignTrustMap AI Processing Service", lifespan=lifespan)
+app = FastAPI(title="SignTrustMap AI Processing Service", lifespan=lifespan, docs_url=None)
+add_scalar_reference(app, route="/docs")
 
 app.add_middleware(
     CORSMiddleware,
