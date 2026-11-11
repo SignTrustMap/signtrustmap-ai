@@ -117,3 +117,12 @@ class TrainTriggerResponse(BaseModel):
     dry_run: bool = Field(False, description="Whether this was a dry run")
     message: Optional[str] = Field(None, description="Optional message details")
     error: Optional[str] = Field(None, description="Error message if failed")
+class ActiveLearningSelectionItem(BaseModel):
+    id: Optional[int] = None
+    candidate_id: str
+    selection_reason: str
+    selected_at: Optional[str] = None
+
+
+class ActiveLearningSelectionBatchRequest(BaseModel):
+    items: List[ActiveLearningSelectionItem] = Field(..., min_length=1)

@@ -5,6 +5,7 @@ import boto3
 from botocore.config import Config
 import torch
 from src.core.config import settings
+from src.infrastructure.db import check_database
 
 _HEALTH_CACHE = {}
 _LAST_HEALTH_CHECK = 0.0
@@ -85,6 +86,7 @@ def get_health_status(force_refresh: bool = False):
         "cuda": check_cuda(),
         "tensorrt": check_tensorrt(),
         "minio": check_minio(),
+        "database": check_database(),
     }
     overall_status = "unhealthy" if any(d.get("status") == "unhealthy" for d in dependencies.values()) else "healthy"
 
@@ -94,4 +96,3 @@ def get_health_status(force_refresh: bool = False):
     }
     _LAST_HEALTH_CHECK = now
     return _HEALTH_CACHE
-

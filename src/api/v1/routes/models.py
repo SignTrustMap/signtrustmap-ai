@@ -1,4 +1,4 @@
-import os
+﻿import os
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -293,3 +293,152 @@ async def list_available_models():
         "detectors": detectors,
         "classifiers": classifiers,
     }
+
+from fastapi import Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, update
+from src.infrastructure.db import get_async_db
+from src.infrastructure.models import AiModelVersion
+from src.api.schemas.models import (
+    AiModelVersionItem,
+    AiModelVersionSyncRequest,
+)
+
+
+@router.get("/versions", response_model=List[AiModelVersionItem])
+async def list_model_versions(db: AsyncSession = Depends(get_async_db)):
+    """List all AI model versions stored in AI Database."""
+    stmt = select(AiModelVersion).order_by(AiModelVersion.id.asc())
+    result = await db.execute(stmt)
+    records = result.scalars().all()
+    return [
+        AiModelVersionItem(
+            id=r.id,
+            model_type=r.model_type,
+            version_tag=r.version_tag,
+            artifact_url=r.artifact_url,
+            trained_at=r.trained_at.isoformat() if r.trained_at else None,
+            is_active=r.is_active,
+            evaluation_metrics=r.evaluation_metrics,
+            created_at=r.created_at.isoformat() if r.created_at else None,
+        )
+        for r in records
+    ]
+
+
+@router.post("/versions/sync")
+async def sync_model_version(
+    request: AiModelVersionSyncRequest,
+    db: AsyncSession = Depends(get_async_db),
+):
+    """Synchronize a model version record from Backend into AI Database."""
+    try:
+        existing = await db.get(AiModelVersion, request.id)
+        if existing:
+            existing.model_type = request.model_type
+            existing.version_tag = request.version_tag
+            existing.artifact_url = request.artifact_url
+            existing.is_active = request.is_active
+            existing.evaluation_metrics = request.evaluation_metrics
+        else:
+            db_item = AiModelVersion(
+                id=request.id,
+                model_type=request.model_type,
+                version_tag=request.version_tag,
+                artifact_url=request.artifact_url,
+                is_active=request.is_active,
+                evaluation_metrics=request.evaluation_metrics,
+            )
+            db.add(db_item)
+        await db.commit()
+        return {"status": "SUCCESS", "id": request.id, "is_active": request.is_active}
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Failed to sync model version: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to sync model version: {str(e)}",
+        )
+
+
+@router.patch("/versions/{version_id}/activate")
+async def activate_model_version(
+    version_id: int,
+    db: AsyncSession = Depends(get_async_db),
+):
+    """Activate a model version in AI Database, deactivating others of same type."""
+    try:
+        target = await db.get(AiModelVersion, version_id)
+        if not target:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"AI model version #{version_id} not found in AI DB.",
+            )
+        await db.execute(
+            update(AiModelVersion)
+            .where(AiModelVersion.model_type == target.model_type)
+            .values(is_active=False)
+        )
+        target.is_active = True
+        await db.commit()
+        return {
+            "status": "SUCCESS",
+            "version_id": version_id,
+            "model_type": target.model_type,
+            "is_active": True,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Failed to activate model version #{version_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to activate model version: {str(e)}",
+        )
+
+
+@router.patch("/versions/{version_id}/rollback")
+async def rollback_model_version(
+    version_id: int,
+    db: AsyncSession = Depends(get_async_db),
+):
+    """Rollback an active model version to previous stable version in AI Database."""
+    try:
+        target = await db.get(AiModelVersion, version_id)
+        if not target:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"AI model version #{version_id} not found in AI DB.",
+            )
+        target.is_active = False
+
+        prev_stmt = (
+            select(AiModelVersion)
+            .where(AiModelVersion.model_type == target.model_type, AiModelVersion.id != version_id)
+            .order_by(AiModelVersion.created_at.desc())
+            .limit(1)
+        )
+        prev_result = await db.execute(prev_stmt)
+        prev = prev_result.scalar_one_or_none()
+        reactivated_id = None
+        if prev:
+            prev.is_active = True
+            reactivated_id = prev.id
+
+        await db.commit()
+        return {
+            "status": "SUCCESS",
+            "version_id": version_id,
+            "rolled_back": True,
+            "reactivated_id": reactivated_id,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Failed to rollback model version #{version_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to rollback model version: {str(e)}",
+        )

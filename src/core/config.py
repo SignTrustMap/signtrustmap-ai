@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     # Compatibility alias for existing runtime configuration files.
     MINIO_BUCKET: str = "stm-sign-crops"
     INTERNAL_API_TOKEN: str = "stm_internal_secret_dev"
+    DATABASE_URL: str = "postgresql+asyncpg://stm_ai_user:stm_ai_password@localhost:5432/signtrustmap_ai"
+    SYNC_DATABASE_URL: str = "postgresql+psycopg://stm_ai_user:stm_ai_password@localhost:5432/signtrustmap_ai"
     
     DETECTOR_S3_KEY: Optional[str] = "models/detectors/yolo26n_vtsdb_mtsd_dfg.engine"
     CLASSIFIER_S3_KEY: Optional[str] = "models/classifiers/mobileclip_s2.pt"

@@ -1,4 +1,4 @@
-from typing import Optional
+﻿from typing import Optional, List
 from fastapi import APIRouter, Header, HTTPException, status
 import torch
 from loguru import logger
@@ -175,3 +175,65 @@ async def rebuild_classifier_weights(
 
 
 
+
+from fastapi import Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from src.infrastructure.db import get_async_db
+from src.infrastructure.models import ActiveLearningSelection
+from src.api.schemas.active_learning import (
+    ActiveLearningSelectionItem,
+    ActiveLearningSelectionBatchRequest,
+)
+
+
+@router.post("/selections", status_code=status.HTTP_201_CREATED)
+async def record_active_learning_selections(
+    request: ActiveLearningSelectionBatchRequest,
+    db: AsyncSession = Depends(get_async_db),
+):
+    """Persist candidate selections chosen by Active Learning into AI DB."""
+    try:
+        count = 0
+        for item in request.items:
+            sel = ActiveLearningSelection(
+                candidate_id=item.candidate_id,
+                selection_reason=item.selection_reason,
+            )
+            db.add(sel)
+            count += 1
+        await db.commit()
+        return {"status": "SUCCESS", "count": count}
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Failed to record AL selections: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to record AL selections: {str(e)}",
+        )
+
+
+@router.get("/selections", response_model=List[ActiveLearningSelectionItem])
+async def list_active_learning_selections(
+    limit: int = 50,
+    offset: int = 0,
+    db: AsyncSession = Depends(get_async_db),
+):
+    """Retrieve Active Learning selection history from AI DB."""
+    stmt = (
+        select(ActiveLearningSelection)
+        .order_by(ActiveLearningSelection.id.desc())
+        .limit(min(limit, 500))
+        .offset(offset)
+    )
+    result = await db.execute(stmt)
+    records = result.scalars().all()
+    return [
+        ActiveLearningSelectionItem(
+            id=r.id,
+            candidate_id=str(r.candidate_id),
+            selection_reason=r.selection_reason,
+            selected_at=r.selected_at.isoformat() if r.selected_at else None,
+        )
+        for r in records
+    ]

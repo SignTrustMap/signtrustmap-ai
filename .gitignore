@@ -129,3 +129,5 @@ logs
 tests/fixtures/real_videos/*.mp4
 tests/fixtures/real_features/*.pt
 tests/outputs/
+
+/working
