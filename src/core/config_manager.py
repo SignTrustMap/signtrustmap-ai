@@ -4,7 +4,10 @@ import os
 from pathlib import Path
 from typing import Any, Dict, Optional
 from loguru import logger
+from sqlalchemy.orm import Session
 from src.core.config import settings
+from src.infrastructure.db import sync_engine
+from src.infrastructure.models import AiSystemConfig
 
 
 class ConfigDict(dict):
@@ -123,6 +126,23 @@ class ConfigManager:
         raise AttributeError(f"'ConfigManager' object has no attribute '{name}'")
 
     def load_config(self) -> None:
+        try:
+            with Session(sync_engine) as session:
+                db_configs = session.query(AiSystemConfig).all()
+                for cfg in db_configs:
+                    if "." in cfg.config_key:
+                        group, key = cfg.config_key.split(".", 1)
+                        norm_group = self._normalize_key(group)
+                        if norm_group not in self._config:
+                            self._config[norm_group] = ConfigDict()
+                        self._config[norm_group][key] = cfg.config_value
+                if db_configs:
+                    logger.info(f"Loaded {len(db_configs)} system configs from AI Database")
+        except Exception as e:
+            logger.warning("================================================================================")
+            logger.warning(f"FALLBACK WARNING: Database query for system configs failed ({e})! Falling back to local app_config.json.")
+            logger.warning("================================================================================")
+
         if self._config_file.exists():
             try:
                 with open(self._config_file, "r", encoding="utf-8") as f:
@@ -137,7 +157,9 @@ class ConfigManager:
 
                 logger.info(f"Loaded persistent runtime config groups: {list(self._config.keys())}")
             except Exception as e:
-                logger.warning(f"Failed to load persistent config from {self._config_file}: {e}")
+                logger.warning("================================================================================")
+                logger.warning(f"FALLBACK WARNING: Failed to load persistent config from {self._config_file}: {e}")
+                logger.warning("================================================================================")
 
     def save_config(self) -> None:
         try:

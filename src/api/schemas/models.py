@@ -111,26 +111,22 @@ class ModelListResponse(BaseModel):
     detectors: List[DetectorFileInfo] = Field(default_factory=list, description="List of detector models")
     classifiers: List[ClassifierFileInfo] = Field(default_factory=list, description="List of classifier models")
 
-class AiModelVersionItem(BaseModel):
+class ModelVersionItem(BaseModel):
     id: int
     model_type: str
     version_tag: str
-    artifact_url: Optional[str] = None
-    trained_at: Optional[str] = None
     is_active: bool = False
-    evaluation_metrics: Optional[dict] = None
+    note: Optional[str] = None
     created_at: Optional[str] = None
 
 
-class AiModelVersionSyncRequest(BaseModel):
+class ModelVersionSyncRequest(BaseModel):
     id: int
     model_type: str
     version_tag: str
-    artifact_url: Optional[str] = None
-    trained_at: Optional[str] = None
     is_active: bool = False
-    evaluation_metrics: Optional[dict] = None
+    note: Optional[str] = None
 
 
-class AiModelVersionActivateRequest(BaseModel):
+class ModelVersionActivateRequest(BaseModel):
     id: int

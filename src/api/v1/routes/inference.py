@@ -16,7 +16,6 @@ from src.api.schemas.inference import (
     SubmissionInferenceRequest,
     SubmissionInferenceResponse,
 )
-from src.core.class_manager import class_manager
 from src.core.config import settings
 from src.core.config_manager import config_manager
 from src.core.model_manager import model_manager
@@ -139,7 +138,6 @@ def _perform_early_classification(
                 c_conf = (top1.get("classify_confidence") if top1 else None) or c_res.get("classify_confidence", 0.0)
                 d_conf = item.get("confidence", 0.0)
                 conf = c_conf if c_conf > 0 else d_conf
-                meta = class_manager.get_sign_metadata(cid) if cid is not None else {}
 
                 sign_result = {
                     "track_id": None,
@@ -156,10 +154,6 @@ def _perform_early_classification(
                     "sign_crop_key": object_key or media_url or "",
                     "frame_index": 0,
                     "timestamp_seconds": 0.0,
-                    "category": meta.get("category"),
-                    "name_vi": meta.get("name_vi"),
-                    "name_en": meta.get("name_en"),
-                    "standard_code": meta.get("standard_code"),
                 }
                 signs.append(sign_result)
 
@@ -182,7 +176,6 @@ def _perform_early_classification(
             best_class_name = (best_top1.get("class_name") if best_top1 else None) or c_res.get("class_name")
             best_classify_conf = (best_top1.get("classify_confidence") if best_top1 else None) or c_res.get("classify_confidence", 0.0)
             best_confidence = best_classify_conf
-            meta = class_manager.get_sign_metadata(best_class_id) if best_class_id is not None else {}
             h, w = image.shape[:2]
 
             sign_result = {
@@ -200,14 +193,9 @@ def _perform_early_classification(
                 "sign_crop_key": object_key or media_url or "",
                 "frame_index": 0,
                 "timestamp_seconds": 0.0,
-                "category": meta.get("category"),
-                "name_vi": meta.get("name_vi"),
-                "name_en": meta.get("name_en"),
-                "standard_code": meta.get("standard_code"),
             }
             signs.append(sign_result)
 
-        meta = class_manager.get_sign_metadata(best_class_id) if best_class_id is not None else {}
         return {
             "status": "CLASSIFIED" if best_class_id is not None else "UNKNOWN",
             "class_id": best_class_id,
@@ -218,10 +206,6 @@ def _perform_early_classification(
             "top1": best_top1,
             "top5": best_top5,
             "all_predictions": best_all_predictions,
-            "category": meta.get("category"),
-            "name_vi": meta.get("name_vi"),
-            "name_en": meta.get("name_en"),
-            "standard_code": meta.get("standard_code"),
             "sign_id": sign_id,
             "task_id": task_id,
             "media_url": media_url,

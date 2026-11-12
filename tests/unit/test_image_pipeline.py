@@ -77,7 +77,7 @@ def test_ai_img_02_valid_inference(detector: SignDetector, classifier: SignClass
     sign = res["signs"][0]
     assert sign["sign_crop_key"] is not None
     assert "candidates/sub_test_02/" in sign["sign_crop_key"]
-    assert sign["name_vi"] is not None
+    assert sign["class_name"] is not None
     logger.info(f"AI-IMG-02 verified: detected {len(res['signs'])} sign(s).")
 
 

@@ -3,6 +3,15 @@ import numpy as np
 from loguru import logger
 from scipy.spatial.distance import cdist
 from scipy.stats import rankdata
+from src.core.active_learning.base import BaseActiveLearningScorer
+
+
+class R3CECScorer(BaseActiveLearningScorer):
+    name: str = "r3_cec"
+
+    def compute_box_score(self, detection: Dict[str, Any]) -> float:
+        conf = float(detection.get("confidence", 0.0))
+        return max(0.0, min(1.0, 1.0 - conf))
 
 
 class R3CECSelector:

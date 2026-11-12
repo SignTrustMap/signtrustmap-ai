@@ -33,7 +33,7 @@ def test_ai_vid_01_track_deduplication(detector: SignDetector, classifier: SignC
     for s in res["signs"]:
         assert "candidates/sub_vid_01/" in s["best_frame_key"]
         assert "candidates/sub_vid_01/" in s["sign_crop_key"]
-        assert s["standard_code"] is not None
+        assert s["class_name"] is not None
     logger.info("AI-VID-01 verified: exactly 3 track representatives produced.")
 
 
