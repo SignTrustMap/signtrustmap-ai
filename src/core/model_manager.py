@@ -190,14 +190,14 @@ class ModelManager:
         return 0.0
 
     async def _watchdog_loop(self) -> None:
-        logger.debug(f"Multi-model idle watchdog started (timeout={config_manager.model_idle_timeout_seconds}s).")
+        logger.debug(f"Multi-model idle watchdog started (timeout={config_manager.model_idle_timeout}s).")
         while self._is_running:
             try:
                 await asyncio.sleep(15)
                 if not self._is_running:
                     break
 
-                timeout = config_manager.model_idle_timeout_seconds
+                timeout = config_manager.model_idle_timeout
                 if (self._detector is not None or self._classifier is not None) and timeout > 0:
                     idle_duration = time.time() - self._last_accessed
                     if idle_duration >= timeout:

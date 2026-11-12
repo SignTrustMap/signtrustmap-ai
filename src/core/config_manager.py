@@ -5,9 +5,14 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 from loguru import logger
 from sqlalchemy.orm import Session
+from sqlalchemy.sql import func
 from src.core.config import settings
 from src.infrastructure.db import sync_engine
 from src.infrastructure.models import AiSystemConfig
+
+
+def normalize_config_key(key: str) -> str:
+    return key.strip().lower().replace("-", "_")
 
 
 class ConfigDict(dict):
@@ -48,6 +53,7 @@ class ConfigManager:
         self._base_dir = Path(__file__).resolve().parent.parent.parent
         self._config_file = self._base_dir / "configs" / "app_config.json"
         self._config: ConfigDict = ConfigDict(self._get_default_config())
+        self.load_config()
 
     def _get_default_config(self) -> Dict[str, Dict[str, Any]]:
         detector_fallback = os.path.basename(settings.FALLBACK_DETECTOR_PATH)
@@ -57,67 +63,47 @@ class ConfigManager:
             else ("mobileclip_s2.pt" if (self._base_dir / "weights" / "classifiers" / "mobileclip_s2.pt").exists() else "ViT-B-16.pt")
         )
         return {
-            "active_learning": {
-                "default_top_k": 50,
-                "default_strategy": "r3_cec",
-                "default_aggregation": "avg",
-                "no_detection_score": 0.0,
-                "min_batch_size_detector": 50,
-                "min_batch_size_classifier": 100,
-                "discrepancy_threshold": 0.5,
-                "auto_trigger_training": True,
-                "dataset_store_path": "runs/active_learning/dataset.json",
-                "r3_cec": {
-                    "k_neighbors": 5,
-                    "temperature": 0.5,
-                    "query_budget": 16,
-                    "apply_calibration": True,
-                    "random_state": 42,
-                },
-                "least_confidence": {
-                    "aggregation_method": "avg",
-                    "no_detection_score": 0.0,
-                },
+            "detector": {
+                "active_model": detector_fallback,
+                "conf_thresh": 0.6,
+            },
+            "classifier": {
+                "active_model": classifier_fallback,
+                "conf_thresh": 0.6,
+                "prompt_template": settings.CLASSIFIER_PROMPT_TEMPLATE or "a photo of a {} traffic sign.",
+                "temperature": 7.0,
             },
             "timo": {
                 "alpha": 250.0,
                 "beta": 0.8,
-                "prompt_template": settings.CLASSIFIER_PROMPT_TEMPLATE or "a photo of a {} traffic sign.",
-                "normalize_embeddings": True,
-                "classifier_cache_file": "weights/classifiers/timo_classifier_100.pt",
             },
             "few_shot_support": {
-                "total_shots_per_class": 16,
+                "shots_per_class": 16,
                 "num_anchors": 4,
                 "num_medoids": 12,
-                "min_crop_resolution": 20,
-                "min_sharpness_laplacian": 15.0,
-                "replacement_policy": "diversity_kmeans",
-                "preserve_pinned_shots": True,
+                "min_crop_size": 20,
+                "min_sharpness": 15.0,
             },
-            "detector": {
-                "active_model": detector_fallback,
-                "default_conf": 0.6,
-            },
-            "classifier": {
-                "active_model": classifier_fallback,
-                "default_conf": 0.6,
-                "temperature": 7.0,
-                "prompt_template": settings.CLASSIFIER_PROMPT_TEMPLATE,
+            "active_learning": {
+                "strategy": "r3_cec",
+                "query_budget": 50,
+                "aggregation": "avg",
+                "no_detection_score": 0.0,
+                "min_samples_detector": 50,
+                "min_samples_classifier": 100,
+                "discrepancy_thresh": 0.5,
+                "auto_trigger_retrain": True,
+                "r3_cec_k_neighbors": 5,
+                "r3_cec_temperature": 0.5,
             },
             "system": {
-                "default_device": 0,
-                "model_idle_timeout_seconds": settings.MODEL_IDLE_TIMEOUT_SECONDS,
-                "log_level": settings.LOG_LEVEL,
-            },
-            "storage": {
-                "minio_endpoint": settings.MINIO_ENDPOINT,
-                "minio_bucket": settings.MINIO_BUCKET,
+                "model_idle_timeout": settings.MODEL_IDLE_TIMEOUT_SECONDS,
+                "cuda_device": 0,
             },
         }
 
     def _normalize_key(self, key: str) -> str:
-        return key.strip().lower().replace("-", "_")
+        return normalize_config_key(key)
 
     def __getattr__(self, name: str) -> Any:
         norm = self._normalize_key(name)
@@ -126,6 +112,7 @@ class ConfigManager:
         raise AttributeError(f"'ConfigManager' object has no attribute '{name}'")
 
     def load_config(self) -> None:
+        loaded_from_db = False
         try:
             with Session(sync_engine) as session:
                 db_configs = session.query(AiSystemConfig).all()
@@ -137,29 +124,49 @@ class ConfigManager:
                             self._config[norm_group] = ConfigDict()
                         self._config[norm_group][key] = cfg.config_value
                 if db_configs:
+                    loaded_from_db = True
                     logger.info(f"Loaded {len(db_configs)} system configs from AI Database")
         except Exception as e:
             logger.warning("================================================================================")
-            logger.warning(f"FALLBACK WARNING: Database query for system configs failed ({e})! Falling back to local app_config.json.")
+            logger.warning(f"FALLBACK WARNING: Database query for system configs failed ({e})! Falling back to local configuration.")
             logger.warning("================================================================================")
 
-        if self._config_file.exists():
+        if not loaded_from_db and self._config_file.exists():
             try:
                 with open(self._config_file, "r", encoding="utf-8") as f:
                     loaded_data: Dict[str, Any] = json.load(f)
-
                 for group_key, group_val in loaded_data.items():
                     norm_group = self._normalize_key(group_key)
                     if isinstance(group_val, dict):
                         if norm_group not in self._config:
                             self._config[norm_group] = ConfigDict()
                         self._config[norm_group].update(group_val)
-
-                logger.info(f"Loaded persistent runtime config groups: {list(self._config.keys())}")
+                logger.info(f"Loaded fallback persistent runtime config from {self._config_file}")
             except Exception as e:
                 logger.warning("================================================================================")
                 logger.warning(f"FALLBACK WARNING: Failed to load persistent config from {self._config_file}: {e}")
                 logger.warning("================================================================================")
+
+        self.save_config()
+
+    def _persist_to_db(self, updates_by_group: Dict[str, Dict[str, Any]]) -> None:
+        try:
+            with Session(sync_engine) as session:
+                for group_name, group_updates in updates_by_group.items():
+                    norm_group = self._normalize_key(group_name)
+                    for key, val in group_updates.items():
+                        norm_key = self._normalize_key(key)
+                        full_key = f"{norm_group}.{norm_key}"
+                        db_cfg = session.query(AiSystemConfig).filter_by(config_key=full_key).first()
+                        if db_cfg:
+                            db_cfg.config_value = val
+                            db_cfg.updated_at = func.now()
+                session.commit()
+                logger.debug("Successfully persisted configuration updates to AI Database.")
+        except Exception as e:
+            logger.warning("================================================================================")
+            logger.warning(f"FALLBACK WARNING: Failed to persist config updates to Database ({e}). Storing in local cache.")
+            logger.warning("================================================================================")
 
     def save_config(self) -> None:
         try:
@@ -196,39 +203,59 @@ class ConfigManager:
         if norm not in self._config:
             self._config[norm] = ConfigDict()
 
+        normalized_updates = {}
         for key, val in updates.items():
             if val is not None:
-                self._config[norm][key] = val
+                norm_key = self._normalize_key(key)
+                normalized_updates[norm_key] = val
+                self._config[norm][norm_key] = val
 
+        self._persist_to_db({norm: normalized_updates})
         self.save_config()
         logger.info(f"Updated group '{norm}' configuration: {self._config[norm]}")
         return self.get_group(norm)
 
     def update_bulk(self, bulk_updates: Dict[str, Any]) -> Dict[str, Any]:
+        normalized_bulk = {}
         for group_name, group_updates in bulk_updates.items():
             if isinstance(group_updates, dict):
                 norm = self._normalize_key(group_name)
                 if norm not in self._config:
                     self._config[norm] = ConfigDict()
+                norm_updates = {}
                 for k, v in group_updates.items():
                     if v is not None:
-                        self._config[norm][k] = v
+                        norm_k = self._normalize_key(k)
+                        norm_updates[norm_k] = v
+                        self._config[norm][norm_k] = v
+                normalized_bulk[norm] = norm_updates
 
+        self._persist_to_db(normalized_bulk)
         self.save_config()
         logger.info(f"Updated bulk configurations: {list(bulk_updates.keys())}")
         return self.get_all()
 
     def reset_config(self) -> Dict[str, Any]:
         logger.info("Resetting runtime configuration back to factory default settings.")
-        self._config = ConfigDict(self._get_default_config())
+        defaults = self._get_default_config()
+        self._config = ConfigDict(defaults)
 
-        if self._config_file.exists():
-            try:
-                os.remove(self._config_file)
-                logger.debug(f"Removed persistent config file: {self._config_file}")
-            except Exception as e:
-                logger.warning(f"Could not remove {self._config_file}: {e}")
+        try:
+            with Session(sync_engine) as session:
+                for group, group_dict in defaults.items():
+                    if isinstance(group_dict, dict):
+                        for k, v in group_dict.items():
+                            full_key = f"{group}.{k}"
+                            db_cfg = session.query(AiSystemConfig).filter_by(config_key=full_key).first()
+                            if db_cfg:
+                                db_cfg.config_value = v
+                                db_cfg.updated_at = func.now()
+                session.commit()
+                logger.info("Restored default configs in AI Database.")
+        except Exception as e:
+            logger.warning(f"Failed to reset configs in Database ({e}). Resetting local state.")
 
+        self.save_config()
         return self.get_all()
 
     @property
@@ -240,12 +267,12 @@ class ConfigManager:
         return self.get("classifier.active_model")
 
     @property
-    def default_detector_conf(self) -> float:
-        return float(self.get("detector.default_conf", 0.6))
+    def detector_conf_thresh(self) -> float:
+        return float(self.get("detector.conf_thresh", 0.6))
 
     @property
-    def default_classifier_conf(self) -> float:
-        return float(self.get("classifier.default_conf", 0.6))
+    def classifier_conf_thresh(self) -> float:
+        return float(self.get("classifier.conf_thresh", 0.6))
 
     @property
     def classifier_temperature(self) -> float:
@@ -253,19 +280,19 @@ class ConfigManager:
 
     @property
     def classifier_prompt_template(self) -> str:
-        return str(self.get("classifier.prompt_template", settings.CLASSIFIER_PROMPT_TEMPLATE))
+        return str(self.get("classifier.prompt_template", settings.CLASSIFIER_PROMPT_TEMPLATE or "a photo of a {} traffic sign."))
 
     @property
-    def default_device(self) -> int:
-        return int(self.get("system.default_device", 0))
+    def cuda_device(self) -> int:
+        return int(self.get("system.cuda_device", 0))
 
     @property
-    def model_idle_timeout_seconds(self) -> int:
-        return int(self.get("system.model_idle_timeout_seconds", 1800))
+    def model_idle_timeout(self) -> int:
+        return int(self.get("system.model_idle_timeout", settings.MODEL_IDLE_TIMEOUT_SECONDS))
 
     @property
     def log_level(self) -> str:
-        return str(self.get("system.log_level", "INFO"))
+        return str(settings.LOG_LEVEL)
 
     def set_active_detector(self, weights_name: str) -> None:
         self.update_group("detector", {"active_model": os.path.basename(weights_name)})

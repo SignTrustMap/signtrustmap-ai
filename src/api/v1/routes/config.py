@@ -1,10 +1,49 @@
-from typing import Any, Dict
+from typing import Any, Dict, Optional, Tuple
 from fastapi import APIRouter, HTTPException, status, Body
 from loguru import logger
-from src.core.config_manager import config_manager
-from src.api.schemas.config import ConfigResetResponse
+from pydantic import ValidationError
+from src.core.config_manager import config_manager, normalize_config_key
+from src.api.schemas.config import (
+    ActiveLearningConfigUpdate,
+    ClassifierConfigUpdate,
+    ConfigResetResponse,
+    DetectorConfigUpdate,
+    FewShotSupportConfigUpdate,
+    SystemConfigUpdate,
+    TimoConfigUpdate,
+)
 
 router = APIRouter(tags=["Config"])
+
+GROUP_SCHEMA_MAP = {
+    "detector": DetectorConfigUpdate,
+    "classifier": ClassifierConfigUpdate,
+    "timo": TimoConfigUpdate,
+    "few_shot_support": FewShotSupportConfigUpdate,
+    "active_learning": ActiveLearningConfigUpdate,
+    "system": SystemConfigUpdate,
+}
+
+
+def normalize_and_validate_group(group_name: str, payload: Optional[Any] = None) -> Tuple[str, Optional[Dict[str, Any]]]:
+    norm_group = normalize_config_key(group_name)
+    if norm_group not in GROUP_SCHEMA_MAP:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Configuration group '{group_name}' not found.",
+        )
+    if payload is None:
+        return norm_group, None
+
+    if not isinstance(payload, dict):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Configuration for group '{group_name}' must be an object.",
+        )
+    schema_cls = GROUP_SCHEMA_MAP[norm_group]
+    validated = schema_cls(**payload)
+    clean_updates = {k: v for k, v in validated.model_dump(exclude_unset=True).items() if v is not None}
+    return norm_group, clean_updates
 
 
 @router.get("", response_model=Dict[str, Dict[str, Any]])
@@ -16,14 +55,20 @@ async def get_all_configuration():
 @router.patch("", response_model=Dict[str, Dict[str, Any]])
 async def update_all_configuration(updates: Dict[str, Any] = Body(...)):
     logger.info(f"Received bulk configuration update request: {updates}")
+    cleaned_bulk: Dict[str, Dict[str, Any]] = {}
     try:
-        return config_manager.update_bulk(updates)
-    except (KeyError, ValueError, FileNotFoundError) as e:
-        logger.warning(f"Failed to update configuration: {e}")
+        for group_name, group_data in updates.items():
+            norm_group, clean_data = normalize_and_validate_group(group_name, group_data)
+            cleaned_bulk[norm_group] = clean_data
+        return config_manager.update_bulk(cleaned_bulk)
+    except ValidationError as e:
+        logger.warning(f"Validation failed for bulk configuration: {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
+            detail=e.errors(),
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error updating configuration: {e}")
         raise HTTPException(
@@ -35,7 +80,8 @@ async def update_all_configuration(updates: Dict[str, Any] = Body(...)):
 @router.get("/{group_name}", response_model=Dict[str, Any])
 async def get_group_configuration(group_name: str):
     logger.debug(f"Retrieving configuration for group '{group_name}'.")
-    group_config = config_manager.get_group(group_name)
+    norm_group, _ = normalize_and_validate_group(group_name)
+    group_config = config_manager.get_group(norm_group)
     if group_config is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -48,25 +94,16 @@ async def get_group_configuration(group_name: str):
 async def update_group_configuration(group_name: str, updates: Dict[str, Any] = Body(...)):
     logger.info(f"Updating configuration for group '{group_name}': {updates}")
     try:
-        return config_manager.update_group(group_name, updates)
-    except KeyError as e:
-        logger.warning(f"Group not found: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e),
-        )
-    except FileNotFoundError as e:
-        logger.warning(f"File not found during update: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e),
-        )
-    except ValueError as e:
-        logger.warning(f"Invalid field or value: {e}")
+        norm_group, clean_updates = normalize_and_validate_group(group_name, updates)
+        return config_manager.update_group(norm_group, clean_updates)
+    except ValidationError as e:
+        logger.warning(f"Validation error updating group '{group_name}': {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
+            detail=e.errors(),
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error updating group '{group_name}': {e}")
         raise HTTPException(

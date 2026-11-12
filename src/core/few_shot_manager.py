@@ -32,13 +32,11 @@ class FewShotSupportManager:
     def get_support_config(self) -> Dict[str, Any]:
         cfg = self.config.get("few_shot_support", {})
         return {
-            "total_shots_per_class": int(cfg.get("total_shots_per_class", 16)),
+            "shots_per_class": int(cfg.get("shots_per_class", 16)),
             "num_anchors": int(cfg.get("num_anchors", 4)),
             "num_medoids": int(cfg.get("num_medoids", 12)),
-            "min_crop_resolution": int(cfg.get("min_crop_resolution", 20)),
-            "min_sharpness_laplacian": float(cfg.get("min_sharpness_laplacian", 15.0)),
-            "replacement_policy": str(cfg.get("replacement_policy", "diversity_kmeans")),
-            "preserve_pinned_shots": bool(cfg.get("preserve_pinned_shots", True)),
+            "min_crop_size": int(cfg.get("min_crop_size", 20)),
+            "min_sharpness": float(cfg.get("min_sharpness", 15.0)),
         }
 
     def get_timo_config(self) -> Dict[str, Any]:
@@ -46,9 +44,7 @@ class FewShotSupportManager:
         return {
             "alpha": float(cfg.get("alpha", 250.0)),
             "beta": float(cfg.get("beta", 0.8)),
-            "prompt_template": str(cfg.get("prompt_template", "a photo of a {} traffic sign.")),
-            "normalize_embeddings": bool(cfg.get("normalize_embeddings", True)),
-            "classifier_cache_file": str(cfg.get("classifier_cache_file", "weights/classifiers/timo_classifier_100.pt")),
+            "prompt_template": str(self.config.classifier_prompt_template),
         }
 
     def select_support_shots(
@@ -59,26 +55,10 @@ class FewShotSupportManager:
         num_anchors: Optional[int] = None,
         random_state: int = 42,
     ) -> List[Dict[str, Any]]:
-        """
-        Executes Configurable Support Shot Selection & Replacement Policy:
-        1. Preserves pinned shots (is_pinned=True) guaranteed by Admin/Staff.
-        2. Top-K Representative Anchors selected by Area x Sharpness.
-        3. Diverse Medoids selected by K-Means++ clustering on visual embeddings.
-
-        Args:
-            candidates: List of candidate dictionaries.
-            visual_features: Optional (N, D) array of visual embeddings corresponding to candidates.
-            total_shots: Maximum number of shots to select per class (defaults to config: 16).
-            num_anchors: Number of anchor slots to reserve (defaults to config: 4).
-            random_state: Random seed for K-Means clustering reproducibility.
-
-        Returns:
-            List of selected candidate dicts (up to total_shots, with role 'ANCHOR' or 'MEDOID').
-        """
         cfg = self.get_support_config()
-        total_budget = int(total_shots) if total_shots is not None else cfg["total_shots_per_class"]
+        total_budget = int(total_shots) if total_shots is not None else cfg["shots_per_class"]
         n_anchors = int(num_anchors) if num_anchors is not None else cfg["num_anchors"]
-        preserve_pinned = cfg["preserve_pinned_shots"]
+        preserve_pinned = True
 
         n_samples = len(candidates)
         if n_samples == 0:

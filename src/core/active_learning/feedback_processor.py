@@ -82,12 +82,12 @@ class FeedbackProcessor:
         should_auto_trigger = (
             auto_trigger
             if auto_trigger is not None
-            else bool(config_manager.get("active_learning.auto_trigger_training", True))
+            else bool(config_manager.get("active_learning.auto_trigger_retrain", True))
         )
 
         triggered_tasks = []
-        min_batch_detector = int(config_manager.get("active_learning.min_batch_size_detector", 50))
-        min_batch_classifier = int(config_manager.get("active_learning.min_batch_size_classifier", 100))
+        min_batch_detector = int(config_manager.get("active_learning.min_samples_detector", 50))
+        min_batch_classifier = int(config_manager.get("active_learning.min_samples_classifier", 100))
 
         if should_auto_trigger:
             if counts["detector"]["pending"] >= min_batch_detector:

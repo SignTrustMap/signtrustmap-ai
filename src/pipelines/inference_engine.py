@@ -44,8 +44,8 @@ class SubmissionInferenceEngine:
                 "submission_id": submission_id,
                 "detector": detector,
                 "classifier": classifier,
-                "conf": config_manager.default_detector_conf,
-                "device": config_manager.default_device,
+                "conf": config_manager.detector_conf_thresh,
+                "device": config_manager.cuda_device,
             }
             if primary["media_type"] == "IMAGE":
                 result = infer_image(

@@ -23,7 +23,7 @@ class DetectionActiveLearningEngine:
             logger.debug(f"Auto-registered Active Learning strategy: '{instance.name}'")
 
     def get_scorer(self, strategy_name: Optional[str] = None):
-        default_strat = config_manager.get("active_learning.default_strategy", "least_confidence")
+        default_strat = config_manager.get("active_learning.strategy", "r3_cec")
         target = (strategy_name or default_strat).lower()
         scorer = self._strategies.get(target)
         if scorer is None:
@@ -37,9 +37,9 @@ class DetectionActiveLearningEngine:
         return {
             "strategies": list(self._strategies.keys()),
             "aggregation_methods": BaseActiveLearningScorer.get_supported_aggregations(),
-            "default_strategy": config_manager.get("active_learning.default_strategy", "least_confidence"),
-            "default_aggregation": config_manager.get("active_learning.default_aggregation", "avg"),
-            "default_top_k": config_manager.get("active_learning.default_top_k", 50),
+            "strategy": config_manager.get("active_learning.strategy", "r3_cec"),
+            "aggregation": config_manager.get("active_learning.aggregation", "avg"),
+            "query_budget": config_manager.get("active_learning.query_budget", 50),
         }
 
     def score_single(
@@ -60,9 +60,9 @@ class DetectionActiveLearningEngine:
             raise FileNotFoundError(f"Image '{object_name}' could not be downloaded from MinIO storage.")
 
         effective_strategy, scorer = self.get_scorer(strategy)
-        effective_agg = str(aggregation_method or config_manager.get("active_learning.default_aggregation", "avg")).lower()
-        effective_conf = conf_threshold if conf_threshold is not None else config_manager.default_detector_conf
-        effective_device = config_manager.default_device
+        effective_agg = str(aggregation_method or config_manager.get("active_learning.aggregation", "avg")).lower()
+        effective_conf = conf_threshold if conf_threshold is not None else config_manager.detector_conf_thresh
+        effective_device = config_manager.cuda_device
         no_detection_score = float(config_manager.get("active_learning.no_detection_score", 0.0))
 
         try:
@@ -100,9 +100,9 @@ class DetectionActiveLearningEngine:
     ) -> Dict[str, Any]:
         logger.info(f"Starting batch Active Learning scoring for {len(object_names)} object(s).")
         effective_strategy, scorer = self.get_scorer(strategy)
-        effective_agg = str(aggregation_method or config_manager.get("active_learning.default_aggregation", "avg")).lower()
-        effective_conf = conf_threshold if conf_threshold is not None else config_manager.default_detector_conf
-        effective_device = config_manager.default_device
+        effective_agg = str(aggregation_method or config_manager.get("active_learning.aggregation", "avg")).lower()
+        effective_conf = conf_threshold if conf_threshold is not None else config_manager.detector_conf_thresh
+        effective_device = config_manager.cuda_device
         no_detection_score = float(config_manager.get("active_learning.no_detection_score", 0.0))
 
         results: List[Dict[str, Any]] = []
@@ -145,8 +145,8 @@ class DetectionActiveLearningEngine:
 
         results.sort(key=lambda x: x["score"], reverse=True)
 
-        configured_top_k = int(config_manager.get("active_learning.default_top_k", 50))
-        target_top_k = top_k if top_k is not None else configured_top_k
+        configured_budget = int(config_manager.get("active_learning.query_budget", 50))
+        target_top_k = top_k if top_k is not None else configured_budget
 
         if target_top_k == -1:
             ranked_samples = results

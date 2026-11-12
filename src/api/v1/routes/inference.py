@@ -110,7 +110,7 @@ def _perform_early_classification(
             detections = detector.detect(
                 tmp_path,
                 conf=0.35,
-                device=config_manager.default_device,
+                device=config_manager.cuda_device,
             )
         except Exception as e:
             logger.warning(f"Detection step skipped or failed: {e}")

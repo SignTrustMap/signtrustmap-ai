@@ -50,9 +50,11 @@ def test_ai_fs_03_pool_within_budget():
 def test_ai_fs_04_default_configurations():
     manager = FewShotSupportManager()
     cfg = manager.get_support_config()
-    assert cfg["total_shots_per_class"] >= 1
+    assert cfg["shots_per_class"] >= 1
     assert cfg["num_anchors"] >= 1
-    assert cfg["preserve_pinned_shots"] is True
+    assert cfg["num_medoids"] >= 1
+    assert cfg["min_crop_size"] >= 1
+    assert cfg["min_sharpness"] >= 0.0
 
     timo_cfg = manager.get_timo_config()
     assert timo_cfg["alpha"] > 0
