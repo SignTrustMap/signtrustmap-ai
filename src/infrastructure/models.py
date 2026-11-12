@@ -6,7 +6,6 @@ from sqlalchemy import (
     Integer,
     BigInteger,
     String,
-    Float,
     Boolean,
     DateTime,
     ForeignKey,
@@ -46,23 +45,6 @@ class AiModelVersion(Base):
             "version_tag",
             unique=True,
         ),
-    )
-
-
-class CandidateDetectionMetadata(Base):
-    __tablename__ = "candidate_detection_metadata"
-
-    candidate_id = Column(UUID(as_uuid=True), primary_key=True)
-    frame_number = Column(Integer, nullable=True)
-    bbox_x = Column(Float, nullable=True)
-    bbox_y = Column(Float, nullable=True)
-    bbox_width = Column(Float, nullable=True)
-    bbox_height = Column(Float, nullable=True)
-    tracking_id = Column(String(100), nullable=True)
-    detector_model_version_id = Column(
-        Integer,
-        ForeignKey("ai_model_versions.id", deferrable=True),
-        nullable=True,
     )
 
 

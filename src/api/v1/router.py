@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter
+from fastapi import APIRouter
 from src.api.v1.routes import (
     inference,
     models,
@@ -6,7 +6,6 @@ from src.api.v1.routes import (
     config,
     classes,
     active_learning,
-    detections,
     embeddings,
 )
 
@@ -18,5 +17,4 @@ v1_router.include_router(active_learning.router, prefix="/active-learning")
 v1_router.include_router(classes.router, prefix="/classes")
 v1_router.include_router(config.router, prefix="/config")
 v1_router.include_router(system.router, prefix="/system")
-v1_router.include_router(detections.router, prefix="/detections")
 v1_router.include_router(embeddings.router, prefix="/embeddings")
