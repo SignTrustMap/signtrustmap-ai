@@ -6,7 +6,6 @@ from src.api.v1.routes import (
     config,
     classes,
     active_learning,
-    embeddings,
 )
 
 v1_router = APIRouter()
@@ -17,4 +16,3 @@ v1_router.include_router(active_learning.router, prefix="/active-learning")
 v1_router.include_router(classes.router, prefix="/classes")
 v1_router.include_router(config.router, prefix="/config")
 v1_router.include_router(system.router, prefix="/system")
-v1_router.include_router(embeddings.router, prefix="/embeddings")

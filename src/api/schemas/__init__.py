@@ -4,4 +4,3 @@ from src.api.schemas.system import *
 from src.api.schemas.config import *
 from src.api.schemas.classes import *
 from src.api.schemas.active_learning import *
-from src.api.schemas.embeddings import *

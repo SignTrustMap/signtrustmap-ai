@@ -16,7 +16,6 @@ def test_export_schema_dict_content():
     assert isinstance(data, dict)
     expected_tables = {
         "model_versions",
-        "candidate_embeddings",
         "active_learning_selections",
         "model_artifacts",
         "model_classes",
@@ -24,6 +23,7 @@ def test_export_schema_dict_content():
         "ai_system_configs",
     }
     assert expected_tables.issubset(set(data.keys()))
+    assert "candidate_embeddings" not in data
     for table_name in expected_tables:
         assert "columns" in data[table_name]
         assert "foreign_keys" in data[table_name]
@@ -38,11 +38,6 @@ def test_export_schema_dict_content():
     assert mv_cols["is_active"]["type"] == "BOOLEAN"
     assert mv_cols["is_active"]["default"] is False
 
-    ce_cols = {c["name"]: c for c in data["candidate_embeddings"]["columns"]}
-    assert ce_cols["clip_embedding"]["type"] == "VECTOR(512)"
-    assert ce_cols["generated_at"]["type"] == "TIMESTAMP WITH TIME ZONE"
-    assert ce_cols["generated_at"]["default"] == "CURRENT_TIMESTAMP"
-
     al_cols = {c["name"]: c for c in data["active_learning_selections"]["columns"]}
     assert al_cols["selection_reason"]["type"] == "ENUM"
     assert al_cols["selection_reason"]["enum_values"] == ["UNCERTAIN", "HIGH_CONFIDENCE"]
@@ -55,10 +50,10 @@ def test_api_get_db_schema(api_client: TestClient):
     assert response.status_code == 200
     payload = response.json()
     assert payload["dialect"] == "postgresql"
-    assert payload["tables_count"] >= 7
+    assert payload["tables_count"] >= 6
     assert isinstance(payload["tables"], dict)
     assert "model_versions" in payload["tables"]
-    assert "candidate_embeddings" in payload["tables"]
+    assert "candidate_embeddings" not in payload["tables"]
 
     cols = {c["name"]: c for c in payload["tables"]["model_versions"]["columns"]}
     assert cols["model_type"]["type"] == "ENUM"

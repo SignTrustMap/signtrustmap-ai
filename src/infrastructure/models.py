@@ -134,23 +134,6 @@ class AiSystemConfig(Base):
     )
 
 
-class CandidateEmbedding(Base):
-    __tablename__ = "candidate_embeddings"
-
-    candidate_id = Column(UUID(as_uuid=True), primary_key=True)
-    clip_embedding = Column(Vector(512), nullable=False)
-    embedding_model_version_id = Column(
-        Integer,
-        ForeignKey("model_versions.id", deferrable=True),
-        nullable=True,
-    )
-    generated_at = Column(
-        DateTime(timezone=True),
-        nullable=False,
-        default=lambda: datetime.now(timezone.utc),
-    )
-
-
 class ActiveLearningSelection(Base):
     __tablename__ = "active_learning_selections"
 
