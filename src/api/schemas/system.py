@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 
@@ -84,3 +84,10 @@ class SystemMetricsResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: str = Field(..., description="Overall service status (healthy or unhealthy)", examples=["healthy"])
     dependencies: Dict[str, dict] = Field(..., description="Status of infrastructure dependencies (CUDA, MinIO)")
+
+
+class DatabaseSchemaResponse(BaseModel):
+    dialect: str = Field(default="postgresql", description="Target SQL dialect", examples=["postgresql"])
+    tables_count: int = Field(..., description="Total number of database tables", examples=[7])
+    tables: Dict[str, Any] = Field(..., description="Structured dictionary representing the schema of each table")
+

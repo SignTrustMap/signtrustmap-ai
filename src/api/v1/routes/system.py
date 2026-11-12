@@ -5,7 +5,8 @@ from fastapi.responses import StreamingResponse
 from loguru import logger
 from src.infrastructure.system_metrics import metrics_collector
 from src.infrastructure.health import get_health_status
-from src.api.schemas.system import SystemMetricsResponse, HealthResponse
+from src.infrastructure.schema_exporter import export_schema_dict
+from src.api.schemas.system import SystemMetricsResponse, HealthResponse, DatabaseSchemaResponse
 
 router = APIRouter(tags=["System"])
 
@@ -52,3 +53,15 @@ async def stream_system_metrics(request: Request):
             "Access-Control-Allow-Origin": "*",
         },
     )
+
+
+@router.get("/db-schema", response_model=DatabaseSchemaResponse)
+async def get_database_schema():
+    logger.debug("Serving structured database schema.")
+    tables = export_schema_dict()
+    return DatabaseSchemaResponse(
+        dialect="postgresql",
+        tables_count=len(tables),
+        tables=tables,
+    )
+
