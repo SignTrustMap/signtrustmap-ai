@@ -5,8 +5,12 @@ import numpy as np
 import torch
 from loguru import logger
 from scipy.spatial.distance import cdist
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from src.core.config_manager import ConfigManager
+from src.infrastructure.db import sync_engine
+from src.infrastructure.models import SupportShot, TextEmbedding, ModelClass
 
 config_manager = ConfigManager()
 
@@ -278,27 +282,54 @@ class FewShotSupportManager:
         text_embeddings_file: Optional[str] = None,
         output_path: Optional[str] = None,
         device: Optional[str] = None,
+        model_id: int = 2,
     ) -> Path:
         base_dir = Path(__file__).resolve().parent.parent.parent
-        cfg = self.get_timo_config()
-
         dev = torch.device(device if device is not None else ("cuda:0" if torch.cuda.is_available() else "cpu"))
+        out_path = Path(output_path) if output_path else (base_dir / "weights" / "classifiers" / "timo.pt")
 
-        supp_path = Path(support_cache_file) if support_cache_file else (base_dir / "outputs" / "evaluation" / "tip_cache.pt")
-        text_path = Path(text_embeddings_file) if text_embeddings_file else (base_dir / "weights" / "embeddings" / "text_embeddings_mobileclip_s2.pt")
-        out_path = Path(output_path) if output_path else (base_dir / cfg["classifier_cache_file"])
+        keys, labels, text_emb = None, None, None
 
-        if not supp_path.exists():
-            raise FileNotFoundError(f"Support cache file not found at: {supp_path}")
-        if not text_path.exists():
-            raise FileNotFoundError(f"Text embeddings file not found at: {text_path}")
+        try:
+            with Session(sync_engine) as session:
+                stmt_supp = (
+                    select(ModelClass.class_index, SupportShot.embedding)
+                    .join(ModelClass, SupportShot.class_id == ModelClass.id)
+                    .where(SupportShot.model_id == model_id)
+                    .order_by(ModelClass.class_index, SupportShot.id)
+                )
+                supp_rows = session.execute(stmt_supp).fetchall()
+                if supp_rows:
+                    c_indices = [r[0] for r in supp_rows]
+                    embs = [np.array(r[1], dtype=np.float32) for r in supp_rows]
+                    keys = torch.tensor(np.array(embs), device=dev)
+                    labels = torch.tensor(c_indices, dtype=torch.long, device=dev)
 
-        logger.info(f"Loading support features from {supp_path} and text embeddings from {text_path}")
-        supp_data = torch.load(supp_path, map_location=dev)
-        text_emb = torch.load(text_path, map_location=dev)
+                stmt_text = (
+                    select(ModelClass.class_index, TextEmbedding.embedding)
+                    .join(ModelClass, TextEmbedding.class_id == ModelClass.id)
+                    .where(TextEmbedding.model_id == model_id)
+                    .order_by(ModelClass.class_index)
+                )
+                text_rows = session.execute(stmt_text).fetchall()
+                if text_rows:
+                    text_embs = [np.array(r[1], dtype=np.float32) for r in text_rows]
+                    text_emb = torch.tensor(np.array(text_embs), device=dev)
+        except Exception as e:
+            logger.warning(f"Could not load vectors from database: {e}")
 
-        keys = supp_data["keys"] if isinstance(supp_data, dict) else supp_data
-        labels = supp_data["labels"] if isinstance(supp_data, dict) else torch.zeros(len(keys), dtype=torch.long)
+        if keys is None or text_emb is None:
+            supp_path = Path(support_cache_file) if support_cache_file else (base_dir / "outputs" / "evaluation" / "tip_cache.pt")
+            text_path = Path(text_embeddings_file) if text_embeddings_file else (base_dir / "weights" / "embeddings" / "text_embeddings_mobileclip_s2.pt")
+            if not supp_path.exists():
+                raise FileNotFoundError(f"Support cache file not found at: {supp_path}")
+            if not text_path.exists():
+                raise FileNotFoundError(f"Text embeddings file not found at: {text_path}")
+            logger.info(f"Loading support features from {supp_path} and text embeddings from {text_path}")
+            supp_data = torch.load(supp_path, map_location=dev)
+            text_emb = torch.load(text_path, map_location=dev)
+            keys = supp_data["keys"] if isinstance(supp_data, dict) else supp_data
+            labels = supp_data["labels"] if isinstance(supp_data, dict) else torch.zeros(len(keys), dtype=torch.long)
 
         w_timo, b_timo = self.compute_timo_classifier(
             support_features=keys,

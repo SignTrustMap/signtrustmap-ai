@@ -108,6 +108,7 @@ class ModelClass(Base):
     )
     class_index = Column(Integer, nullable=False)
     class_name = Column(String(100), nullable=False)
+    sign_code = Column(String(50), nullable=True)
     created_at = Column(
         DateTime(timezone=True),
         nullable=False,
@@ -148,3 +149,50 @@ class ActiveLearningSelection(Base):
         nullable=False,
         default=lambda: datetime.now(timezone.utc),
     )
+
+
+class SupportShot(Base):
+    __tablename__ = "support_shots"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    model_id = Column(Integer, ForeignKey("model_versions.id", ondelete="CASCADE"), nullable=False)
+    class_id = Column(Integer, ForeignKey("model_classes.id", ondelete="CASCADE"), nullable=False)
+    role = Column(String(20), nullable=False, default="MEDOID")
+    s3_key = Column(String(255), nullable=False)
+    embedding = Column(Vector(512), nullable=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+
+class TextEmbedding(Base):
+    __tablename__ = "text_embeddings"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    model_id = Column(Integer, ForeignKey("model_versions.id", ondelete="CASCADE"), nullable=False)
+    class_id = Column(Integer, ForeignKey("model_classes.id", ondelete="CASCADE"), nullable=False)
+    embedding = Column(Vector(512), nullable=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+
+class EvaluationEmbedding(Base):
+    __tablename__ = "evaluation_embeddings"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    model_id = Column(Integer, ForeignKey("model_versions.id", ondelete="CASCADE"), nullable=False)
+    class_id = Column(Integer, ForeignKey("model_classes.id", ondelete="CASCADE"), nullable=False)
+    split = Column(String(10), nullable=False)
+    embedding = Column(Vector(512), nullable=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+

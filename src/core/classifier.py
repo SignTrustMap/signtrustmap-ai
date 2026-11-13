@@ -14,11 +14,16 @@ except ImportError:
 from loguru import logger
 import clip
 import open_clip
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
 from src.core.config import settings
 from src.core.class_manager import class_manager
 from src.core.config_manager import config_manager
 from src.core.few_shot_manager import few_shot_manager
+from src.infrastructure.db import sync_engine
 from src.infrastructure.minio_client import minio_client
+from src.infrastructure.models import TextEmbedding, ModelClass
 
 
 class TensorRTVisualRunner:
@@ -208,7 +213,7 @@ class SignClassifier:
         base_dir = Path(__file__).resolve().parent.parent.parent
         cache_dir = base_dir / "weights" / "classifiers"
         cache_dir.mkdir(parents=True, exist_ok=True)
-        return cache_dir / "timo_classifier_100.pt"
+        return cache_dir / "timo.pt"
 
     def _load_or_build_timo_classifier(self) -> Tuple[torch.Tensor, torch.Tensor]:
         cache_path = self._get_timo_cache_path()
@@ -354,34 +359,64 @@ class SignClassifier:
 
         return torch.cat(features_list, dim=0)
 
+    def _save_text_embeddings_to_db(self, text_features: torch.Tensor, model_id: int = 2) -> None:
+        try:
+            feats_np = text_features.cpu().float().numpy()
+            with Session(sync_engine) as session:
+                stmt_map = select(ModelClass.class_index, ModelClass.id).where(ModelClass.model_id == model_id)
+                class_map = {row[0]: row[1] for row in session.execute(stmt_map).fetchall()}
+                for idx in range(len(feats_np)):
+                    if idx in class_map:
+                        cid = class_map[idx]
+                        existing = session.query(TextEmbedding).filter_by(model_id=model_id, class_id=cid).first()
+                        if existing:
+                            existing.embedding = feats_np[idx]
+                        else:
+                            session.add(TextEmbedding(model_id=model_id, class_id=cid, embedding=feats_np[idx]))
+                session.commit()
+            logger.info("Persisted text embeddings to AI database.")
+        except Exception as e:
+            logger.error(f"Failed to persist text embeddings to database: {e}")
+
     def _load_or_build_text_features(self, prompt_template: str) -> torch.Tensor:
         self._class_map = class_manager.get_classes_map()
         self._class_ids = sorted(self._class_map.keys())
         expected_count = len(self._class_ids)
 
-        cache_path = self._get_embedding_cache_path()
+        try:
+            with Session(sync_engine) as session:
+                stmt = (
+                    select(ModelClass.class_index, TextEmbedding.embedding)
+                    .join(ModelClass, TextEmbedding.class_id == ModelClass.id)
+                    .where(TextEmbedding.model_id == 2)
+                    .order_by(ModelClass.class_index)
+                )
+                rows = session.execute(stmt).fetchall()
+                if len(rows) == expected_count:
+                    logger.debug(f"Loaded {len(rows)} text embeddings from database")
+                    embs = [np.array(r[1], dtype=np.float32) for r in rows]
+                    text_features = torch.tensor(np.array(embs), dtype=torch.float32, device=self.device)
+                    self._prune_text_encoder()
+                    return text_features
+        except Exception as e:
+            logger.warning(f"Could not load text embeddings from database: {e}")
 
+        cache_path = self._get_embedding_cache_path()
         if cache_path.exists():
             try:
-                logger.debug(f"Loading text embeddings: {cache_path}")
+                logger.debug(f"Loading text embeddings from fallback cache: {cache_path}")
                 text_features = torch.load(cache_path, map_location=self.device)
                 if isinstance(text_features, torch.Tensor) and text_features.shape[0] == expected_count:
-                    logger.debug(f"Loaded text embeddings shape: {text_features.shape}")
+                    self._save_text_embeddings_to_db(text_features)
                     self._prune_text_encoder()
                     return text_features
             except Exception as e:
-                logger.warning(f"Could not load cached text embeddings from {cache_path}: {e}")
+                logger.warning(f"Could not load fallback cached text embeddings: {e}")
 
         logger.info(f"Computing text embeddings for {expected_count} classes...")
         prompts = class_manager.get_prompts(template=prompt_template)
         text_features = self._encode_prompts(prompts)
-
-        try:
-            torch.save(text_features.cpu(), cache_path)
-            logger.info(f"Saved text embeddings to {cache_path}")
-        except Exception as e:
-            logger.error(f"Failed to persist text embeddings to {cache_path}: {e}")
-
+        self._save_text_embeddings_to_db(text_features)
         self._prune_text_encoder()
         return text_features.to(self.device)
 
@@ -396,14 +431,7 @@ class SignClassifier:
         prompts = class_manager.get_prompts(template=active_template)
         text_features = self._encode_prompts(prompts)
         self.text_features = text_features.to(self.device)
-
-        cache_path = self._get_embedding_cache_path()
-        try:
-            torch.save(self.text_features.cpu(), cache_path)
-            logger.info(f"Updated cached text embeddings at {cache_path}")
-        except Exception as e:
-            logger.error(f"Failed to save text embeddings to {cache_path}: {e}")
-
+        self._save_text_embeddings_to_db(self.text_features)
         return self.text_features
 
     def _prune_text_encoder(self) -> None:

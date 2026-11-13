@@ -21,6 +21,9 @@ def test_export_schema_dict_content():
         "model_classes",
         "model_evaluation_metrics",
         "ai_system_configs",
+        "support_shots",
+        "text_embeddings",
+        "evaluation_embeddings",
     }
     assert expected_tables.issubset(set(data.keys()))
     assert "candidate_embeddings" not in data
@@ -50,9 +53,12 @@ def test_api_get_db_schema(api_client: TestClient):
     assert response.status_code == 200
     payload = response.json()
     assert payload["dialect"] == "postgresql"
-    assert payload["tables_count"] >= 6
+    assert payload["tables_count"] >= 9
     assert isinstance(payload["tables"], dict)
     assert "model_versions" in payload["tables"]
+    assert "support_shots" in payload["tables"]
+    assert "text_embeddings" in payload["tables"]
+    assert "evaluation_embeddings" in payload["tables"]
     assert "candidate_embeddings" not in payload["tables"]
 
     cols = {c["name"]: c for c in payload["tables"]["model_versions"]["columns"]}
