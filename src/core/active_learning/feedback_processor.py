@@ -1,9 +1,12 @@
 import asyncio
 from typing import Any, Dict, List, Optional
 from loguru import logger
+from sqlalchemy.orm import Session
 from src.core.config_manager import config_manager
 from src.core.active_learning.store import al_store
 from src.core.active_learning.retrain import trigger_retrain
+from src.infrastructure.db import sync_engine
+from src.infrastructure.models import ActiveLearningRecord, CandidateEmbedding
 
 
 class FeedbackProcessor:
@@ -113,6 +116,54 @@ class FeedbackProcessor:
             "correct_count": correct_count,
             "dataset_counts": counts,
             "triggered_retrain": triggered_tasks,
+        }
+
+    def process_consensus_feedback(
+        self,
+        candidate_id: str,
+        outcome: str,
+        final_sign_code: Optional[str] = None,
+        final_box_xyxy: Optional[List[float]] = None,
+    ) -> Dict[str, Any]:
+        outcome_upper = outcome.strip().upper()
+        logger.info(f"Processing consensus feedback for candidate {candidate_id}: outcome={outcome_upper}")
+
+        if outcome_upper in ["TP_BBOX_UNCHANGED", "VERIFIED"]:
+            return {
+                "candidate_id": candidate_id,
+                "outcome": outcome_upper,
+                "action": "candidate_retained_in_pool",
+                "final_sign_code": final_sign_code,
+            }
+
+        if outcome_upper in ["TP_BBOX_EDITED", "BBOX_EDITED"]:
+            if final_box_xyxy:
+                with Session(sync_engine) as session:
+                    rec = session.query(ActiveLearningRecord).filter(
+                        ActiveLearningRecord.candidate_id == candidate_id
+                    ).first()
+                    if rec:
+                        rec.box_xyxy = final_box_xyxy
+                        session.commit()
+            return {
+                "candidate_id": candidate_id,
+                "outcome": outcome_upper,
+                "action": "bbox_updated",
+                "final_box_xyxy": final_box_xyxy,
+                "final_sign_code": final_sign_code,
+            }
+
+        if outcome_upper in ["FALSE_POSITIVE", "REJECTED"]:
+            return {
+                "candidate_id": candidate_id,
+                "outcome": outcome_upper,
+                "action": "candidate_discarded",
+            }
+
+        return {
+            "candidate_id": candidate_id,
+            "outcome": outcome_upper,
+            "action": "unrecognized_outcome",
         }
 
 
