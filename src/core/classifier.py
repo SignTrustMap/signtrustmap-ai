@@ -180,13 +180,18 @@ class SignClassifier:
             elif "b" in weights_path.lower():
                 arch = "MobileCLIP-B"
 
-            model, _, preprocess = open_clip.create_model_and_transforms(
+            model, _, _ = open_clip.create_model_and_transforms(
                 arch,
                 pretrained=weights_path if os.path.isfile(weights_path) else "datacompdr",
                 device=self.device,
             )
             model.eval()
             self._tokenizer = open_clip.get_tokenizer(arch)
+            preprocess = transforms.Compose([
+                transforms.Resize((256, 256), interpolation=transforms.InterpolationMode.BILINEAR),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=(0.0, 0.0, 0.0), std=(1.0, 1.0, 1.0)),
+            ])
             return model, preprocess
 
         self._is_mobileclip = False

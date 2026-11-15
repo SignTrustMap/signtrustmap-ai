@@ -71,7 +71,7 @@ class ConfigManager:
                 "active_model": classifier_fallback,
                 "conf_thresh": 0.6,
                 "prompt_template": settings.CLASSIFIER_PROMPT_TEMPLATE or "a photo of a {} traffic sign.",
-                "temperature": 7.0,
+                "temperature": 2.5,
             },
             "timo": {
                 "alpha": 250.0,
@@ -276,7 +276,7 @@ class ConfigManager:
 
     @property
     def classifier_temperature(self) -> float:
-        return float(self.get("classifier.temperature", 7.0))
+        return float(self.get("classifier.temperature", 2.5))
 
     @property
     def classifier_prompt_template(self) -> str:
