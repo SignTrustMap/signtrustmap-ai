@@ -4,59 +4,65 @@ from loguru import logger
 from scipy.spatial.distance import cdist
 from scipy.stats import rankdata
 from src.core.active_learning.base import BaseActiveLearningScorer
+from src.core.config_manager import config_manager
 
 
 class R3CECScorer(BaseActiveLearningScorer):
     name: str = "r3_cec"
 
     def compute_box_score(self, detection: Dict[str, Any]) -> float:
+        if "acquisition_score" in detection:
+            return float(detection["acquisition_score"])
         conf = float(detection.get("confidence", 0.0))
         return max(0.0, min(1.0, 1.0 - conf))
 
 
 class R3CECSelector:
-    """
-    R3-CEC (Residual Class Priority, Informativeness, and Representativeness)
-    Active Learning Query Selection Strategy for Training-Free Visual-Language Models (CLIP/TIMO).
-    Reference: ICIT 2026 Paper Sec 3.1 - 3.3.
-    """
-
     def __init__(
         self,
-        k_neighbors: int = 5,
-        temperature: float = 0.5,
-        random_state: int = 42,
+        k_neighbors: Optional[int] = None,
+        temperature: Optional[float] = None,
+        random_state: Optional[int] = None,
     ) -> None:
-        self.k_neighbors = k_neighbors
-        self.temperature = temperature
-        self.random_state = random_state
+        cfg_k = int(config_manager.get("active_learning.r3_cec.k_neighbors", 5))
+        cfg_tau = float(config_manager.get("active_learning.r3_cec.temperature", 0.5))
+        cfg_seed = int(config_manager.get("active_learning.r3_cec.random_state", 42))
+
+        self.k_neighbors = int(k_neighbors if k_neighbors is not None else cfg_k)
+        self.temperature = float(temperature if temperature is not None else cfg_tau)
+        self.random_state = int(random_state if random_state is not None else cfg_seed)
 
     def calibrate_probabilities(
         self,
         probabilities: np.ndarray,
+        reference_prior: Optional[np.ndarray] = None,
+        top_n: Optional[int] = None,
         eps: float = 1e-8,
     ) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        CEC Step 1 Contextual Prior Calibration:
-        Computes marginal class prior p_0(c) over the unlabeled pool and normalizes
-        predicted probabilities P(y=c|x):
-
-        p_0(c) = (1 / |D_U|) * sum_{x in D_U} P(y=c | x)
-        \hat{P}(y=c | x) \propto P(y=c | x) / p_0(c)
-
-        Args:
-            probabilities: Array of shape (N, C) with raw probabilities.
-            eps: Numerical stability constant.
-
-        Returns:
-            Tuple of (calibrated_probabilities of shape (N, C), p0_prior of shape (C,)).
-        """
         probs = np.clip(probabilities, eps, 1.0)
-        p0 = np.mean(probs, axis=0)
-        p0 = np.clip(p0, eps, 1.0)
+        n_samples, n_classes = probs.shape
 
+        if reference_prior is not None:
+            p0 = np.asarray(reference_prior, dtype=np.float64)
+            if p0.shape[0] != n_classes:
+                raise ValueError(f"reference_prior length ({p0.shape[0]}) does not match n_classes ({n_classes})")
+        else:
+            if n_samples == 0:
+                return probs, np.ones(n_classes, dtype=np.float64) / max(1, n_classes)
+
+            configured_top_n = top_n if top_n is not None else int(config_manager.get("active_learning.cec.top_n_prior", 5))
+            eff_top_n = max(1, min(int(configured_top_n), n_samples))
+            p0 = np.zeros(n_classes, dtype=np.float64)
+
+            for c in range(n_classes):
+                col = probs[:, c]
+                top_indices = np.argpartition(col, -eff_top_n)[-eff_top_n:]
+                p0[c] = np.mean(col[top_indices])
+
+        p0 = np.clip(p0, eps, 1.0)
         calibrated = probs / p0[None, :]
-        calibrated /= np.sum(calibrated, axis=1, keepdims=True)
+        denom = np.sum(calibrated, axis=1, keepdims=True)
+        calibrated /= np.clip(denom, eps, None)
         return calibrated, p0
 
     def compute_calibrated_uncertainty(
@@ -66,26 +72,10 @@ class R3CECSelector:
         k_neighbors: Optional[int] = None,
         temperature: Optional[float] = None,
         apply_calibration: bool = True,
+        reference_prior: Optional[np.ndarray] = None,
+        top_n: Optional[int] = None,
         eps: float = 1e-8,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """
-        CEC Step 1 & Step 2:
-        1. Contextual Prior Calibration -> \hat{P}(y=c | x)
-        2. Calibrated entropy: \hat{H}(x) = -sum_c \hat{P}(y=c|x) * log(\hat{P}(y=c|x))
-        3. Distance-weighted neighbor uncertainty: H_NN(x) over k-nearest neighbors
-        4. Total uncertainty utility: U(x) = \hat{H}(x) + H_NN(x) (Formula 2)
-
-        Args:
-            probabilities: Array of shape (N, C) representing predicted class probabilities.
-            visual_features: Array of shape (N, D) representing visual embeddings.
-            k_neighbors: Number of nearest neighbors to consider. Defaults to self.k_neighbors.
-            temperature: Softmax temperature tau for distance weighting. Defaults to self.temperature.
-            apply_calibration: Whether to apply class prior calibration.
-            eps: Numerical stability constant.
-
-        Returns:
-            Tuple of (H_hat, H_NN, U) each of shape (N,).
-        """
         n_samples = probabilities.shape[0]
         if n_samples == 0:
             return np.array([]), np.array([]), np.array([])
@@ -93,52 +83,42 @@ class R3CECSelector:
         k = self.k_neighbors if k_neighbors is None else k_neighbors
         tau = self.temperature if temperature is None else temperature
 
-        # 1. Contextual Prior Calibration
         if apply_calibration and n_samples > 1:
-            p_hat, _ = self.calibrate_probabilities(probabilities, eps=eps)
+            p_hat, _ = self.calibrate_probabilities(
+                probabilities,
+                reference_prior=reference_prior,
+                top_n=top_n,
+                eps=eps,
+            )
         else:
             p_hat = np.clip(probabilities, eps, 1.0)
             p_hat /= np.sum(p_hat, axis=1, keepdims=True)
 
-        # 2. Calibrated Entropy \hat{H}(x)
         h_hat = -np.sum(p_hat * np.log(np.clip(p_hat, eps, 1.0)), axis=1)
 
-        # Edge case: Single sample or k <= 0
         if n_samples <= 1 or k <= 0:
             h_nn = np.copy(h_hat)
             u = h_hat + h_nn
             return h_hat, h_nn, u
 
-        # 3. k-NN Neighbor Uncertainty H_NN(x) with distance weighting
-        # Normalize features to unit sphere if not already normalized
         norm = np.linalg.norm(visual_features, axis=1, keepdims=True)
         z = visual_features / np.clip(norm, eps, None)
 
         k_eff = min(k, n_samples - 1)
-
-        # Pairwise squared Euclidean distance: ||z_i - z_j||_2^2
         dist_sq = cdist(z, z, metric="sqeuclidean")
-
-        # Exclude self-distance by setting diagonal to infinity
         np.fill_diagonal(dist_sq, np.inf)
 
-        # Find k nearest neighbor indices for all samples
         nn_indices = np.argpartition(dist_sq, kth=k_eff - 1, axis=1)[:, :k_eff]
-
         row_indices = np.arange(n_samples)[:, None]
-        nn_dists = dist_sq[row_indices, nn_indices]  # (N, k_eff)
-        nn_h = h_hat[nn_indices]  # (N, k_eff)
+        nn_dists = dist_sq[row_indices, nn_indices]
+        nn_h = h_hat[nn_indices]
 
-        # Distance weights via Softmax kernel: w_j \propto exp(-d(x, x_j) / tau)
         logits = -nn_dists / max(tau, eps)
-        # Shift logits for numerical stability
         logits -= np.max(logits, axis=1, keepdims=True)
         weights = np.exp(logits)
         weights /= np.sum(weights, axis=1, keepdims=True)
 
         h_nn = np.sum(weights * nn_h, axis=1)
-
-        # 4. Total Uncertainty Utility U(x)
         u = h_hat + h_nn
 
         logger.debug(
@@ -155,41 +135,29 @@ class R3CECSelector:
         labeled_counts: Union[np.ndarray, List[int], Dict[int, int]],
         n_classes: Optional[int] = None,
     ) -> np.ndarray:
-        """
-        R3-CEC Residual Class Priority (Formulas 3, 4, 5):
-        rho^{(t)}(x) = 1 / (n_{c_hat(x)}^{(t)} + 1)
-        Prioritizes samples whose predicted class has fewer labeled examples.
-
-        Args:
-            predicted_classes: Array of shape (N,) containing integer class indices.
-            labeled_counts: Labeled count per class as array, list, or dict {class_idx: count}.
-            n_classes: Total number of classes (optional).
-
-        Returns:
-            Array of shape (N,) with residual priority weights rho(x).
-        """
         n_samples = len(predicted_classes)
         if n_samples == 0:
             return np.array([])
 
+        if labeled_counts is None:
+            return np.ones(n_samples, dtype=np.float64)
+
         if isinstance(labeled_counts, dict):
             max_c = max(
                 int(np.max(predicted_classes)) if len(predicted_classes) > 0 else 0,
-                max(labeled_counts.keys()) if labeled_counts else 0,
+                max(int(k) for k in labeled_counts.keys()) if labeled_counts else 0,
                 (n_classes - 1) if n_classes else 0,
             )
             counts_arr = np.zeros(max_c + 1, dtype=np.float64)
             for c_idx, count in labeled_counts.items():
-                if 0 <= c_idx <= max_c:
-                    counts_arr[c_idx] = float(count)
+                if 0 <= int(c_idx) <= max_c:
+                    counts_arr[int(c_idx)] = float(count)
         else:
             counts_arr = np.asarray(labeled_counts, dtype=np.float64)
 
-        # Safely index counts for each predicted class
         max_idx = len(counts_arr) - 1
         safe_classes = np.clip(predicted_classes, 0, max_idx)
         counts = counts_arr[safe_classes]
-
         rho = 1.0 / (counts + 1.0)
         return rho
 
@@ -201,27 +169,12 @@ class R3CECSelector:
         max_iter: int = 100,
         tol: float = 1e-4,
     ) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        CEC Step 2: Partitions visual features into K clusters weighted by uncertainty utility U(x).
-        Uses weighted k-means++ initialization and Lloyd's iterations.
-
-        Args:
-            visual_features: Array of shape (N, D) of visual embeddings.
-            sample_weights: Array of shape (N,) representing sample weights U(x).
-            n_clusters: Number of clusters (query budget K).
-            max_iter: Maximum number of Lloyd iterations.
-            tol: Tolerance for centroid convergence.
-
-        Returns:
-            Tuple of (cluster_labels, cluster_centers) with shapes (N,) and (K, D).
-        """
         n_samples, d = visual_features.shape
         k = min(n_clusters, n_samples)
         if k <= 0:
             return np.zeros(0, dtype=int), np.zeros((0, d))
 
         if n_samples <= k:
-            # Each sample is its own cluster
             labels = np.arange(n_samples, dtype=int)
             centers = visual_features.copy()
             return labels, centers
@@ -231,17 +184,14 @@ class R3CECSelector:
         w = np.clip(w, 1e-8, None)
         w_norm = w / np.sum(w)
 
-        # 1. Weighted K-Means++ Initialization
         first_center_idx = rng.choice(n_samples, p=w_norm)
         centers = [visual_features[first_center_idx].copy()]
 
         for _ in range(1, k):
             current_centers = np.array(centers)
-            # Distance from each point to nearest existing center
             dists_to_centers = cdist(visual_features, current_centers, metric="sqeuclidean")
             min_dist_sq = np.min(dists_to_centers, axis=1)
 
-            # Probabilities proportional to W_i * D(x_i)^2
             candidate_probs = w * min_dist_sq
             total_prob = np.sum(candidate_probs)
             if total_prob > 1e-12:
@@ -255,18 +205,14 @@ class R3CECSelector:
         centers = np.array(centers, dtype=np.float64)
         labels = np.zeros(n_samples, dtype=int)
 
-        # 2. Lloyd's Iteration
         for iteration in range(max_iter):
-            # Assignment step
             dists = cdist(visual_features, centers, metric="sqeuclidean")
             new_labels = np.argmin(dists, axis=1)
 
-            # Update step: weighted centroids
             new_centers = np.empty_like(centers)
             for m in range(k):
                 mask = (new_labels == m)
                 if not np.any(mask):
-                    # Empty cluster: re-assign to sample with largest weighted distance
                     worst_idx = int(np.argmax(w * np.min(dists, axis=1)))
                     new_centers[m] = visual_features[worst_idx].copy()
                 else:
@@ -295,67 +241,63 @@ class R3CECSelector:
         uncertainty: np.ndarray,
         visual_features: np.ndarray,
         centroid: np.ndarray,
-    ) -> int:
-        """
-        R3-CEC Tri-Rank Aggregation within cluster C_m (Formulas 7, 8, 9):
-        - r_res: Rank descending on residual class priority rho(x)
-        - r_info: Rank descending on informativeness uncertainty U(x)
-        - r_rep: Rank ascending on squared Euclidean distance d_m(x) = ||z_x - mu_m||_2^2
-        Aggregated rank: A_m(x) = r_res(x) + r_info(x) + r_rep(x)
-        Returns: argmin A_m(x) with tie-breaking.
-
-        Args:
-            cluster_indices: Array of global indices belonging to cluster C_m.
-            residual_priority: Array of shape (N,) with rho(x).
-            uncertainty: Array of shape (N,) with U(x).
-            visual_features: Array of shape (N, D) with z_x.
-            centroid: Array of shape (D,) representing cluster center mu_m.
-
-        Returns:
-            Global index of the selected candidate x_m^*.
-        """
+        return_details: bool = False,
+    ) -> Union[int, Tuple[int, Dict[int, Dict[str, Any]]]]:
         n_members = len(cluster_indices)
+        member_rank_details: Dict[int, Dict[str, Any]] = {}
+
         if n_members == 1:
-            return int(cluster_indices[0])
+            idx = int(cluster_indices[0])
+            dist_val = float(np.sum((visual_features[idx] - centroid) ** 2))
+            member_rank_details[idx] = {
+                "tri_rank_res": 1,
+                "tri_rank_info": 1,
+                "tri_rank_rep": 1,
+                "aggregate_rank": 3,
+                "distance_to_centroid": dist_val,
+            }
+            if return_details:
+                return idx, member_rank_details
+            return idx
 
         sub_rho = residual_priority[cluster_indices]
         sub_u = uncertainty[cluster_indices]
         sub_z = visual_features[cluster_indices]
 
-        # Representativeness: d_m(x) = ||z_x - mu_m||_2^2 (Formula 6)
         dists = np.sum((sub_z - centroid[None, :]) ** 2, axis=1)
 
-        # Ranking: rankdata with method='min' (ties get the smallest rank index, 1-indexed)
-        # r_res: rank descending on rho (negate so largest rho gets rank 1)
         r_res = rankdata(-sub_rho, method="min")
-
-        # r_info: rank descending on U (negate so largest U gets rank 1)
         r_info = rankdata(-sub_u, method="min")
-
-        # r_rep: rank ascending on distance d_m (smallest distance gets rank 1)
         r_rep = rankdata(dists, method="min")
-
-        # Combined Aggregate Rank: A_m(x) = r_res + r_info + r_rep (Formula 8)
         a_m = r_res + r_info + r_rep
 
-        # Tie-breaking: if aggregate ranks are equal, break ties using highest U, then lowest d_m
+        for local_i, global_i in enumerate(cluster_indices):
+            member_rank_details[int(global_i)] = {
+                "tri_rank_res": int(r_res[local_i]),
+                "tri_rank_info": int(r_info[local_i]),
+                "tri_rank_rep": int(r_rep[local_i]),
+                "aggregate_rank": int(a_m[local_i]),
+                "distance_to_centroid": float(dists[local_i]),
+            }
+
         min_rank = np.min(a_m)
         best_candidates = np.where(a_m == min_rank)[0]
 
         if len(best_candidates) == 1:
             best_local_idx = best_candidates[0]
         else:
-            # Secondary tie-breaker: highest informativeness U
             best_u = np.max(sub_u[best_candidates])
             u_winners = best_candidates[sub_u[best_candidates] == best_u]
             if len(u_winners) == 1:
                 best_local_idx = u_winners[0]
             else:
-                # Tertiary tie-breaker: closest to centroid
                 best_dist_idx = np.argmin(dists[u_winners])
                 best_local_idx = u_winners[best_dist_idx]
 
-        return int(cluster_indices[best_local_idx])
+        winner_idx = int(cluster_indices[best_local_idx])
+        if return_details:
+            return winner_idx, member_rank_details
+        return winner_idx
 
     def select_query_batch(
         self,
@@ -364,71 +306,106 @@ class R3CECSelector:
         labeled_counts: Union[np.ndarray, List[int], Dict[int, int]],
         query_budget: int = 16,
         apply_calibration: bool = True,
+        reference_prior: Optional[np.ndarray] = None,
+        top_n: Optional[int] = None,
     ) -> List[int]:
-        """
-        Executes complete R3-CEC selection workflow (Sec 3.1 - 3.3):
-        1. Contextual prior calibration & Calibrated entropy: \hat{H}(x)
-        2. Neighbor uncertainty: H_NN(x) & total informativeness: U(x) = \hat{H}(x) + H_NN(x)
-        3. Predicted pseudo-classes: \hat{c}(x) = argmax P(y=c|x)
-        4. Residual class priority: \rho(x) = 1 / (n_{\hat{c}(x)} + 1)
-        5. Weighted K-Means on visual features with sample weights U(x) -> K clusters & centroids
-        6. Tri-Rank aggregation per cluster -> 1 sample per cluster
-        Returns list of K selected sample indices.
-
-        Args:
-            visual_features: Array of shape (N, D) of visual embeddings.
-            probabilities: Array of shape (N, C) of predicted probabilities.
-            labeled_counts: Existing labeled counts per class (array, list, or dict).
-            query_budget: Target query batch budget K.
-            apply_calibration: Whether to apply class prior calibration.
-
-        Returns:
-            List of selected global indices of length min(query_budget, N).
-        """
-        n_samples = visual_features.shape[0]
-        if n_samples <= query_budget:
-            logger.info(f"Candidate pool size ({n_samples}) <= budget ({query_budget}). Selecting all.")
-            return list(range(n_samples))
-
-        # 1 & 2: Calibrated uncertainty utility U(x)
-        _, _, u = self.compute_calibrated_uncertainty(
-            probabilities=probabilities,
+        selected, _ = self.select_candidates_with_details(
             visual_features=visual_features,
+            probabilities=probabilities,
+            labeled_counts=labeled_counts,
+            query_budget=query_budget,
             apply_calibration=apply_calibration,
+            reference_prior=reference_prior,
+            top_n=top_n,
         )
+        return selected
 
-        # 3 & 4: Residual Class Priority rho(x)
-        pred_classes = np.argmax(probabilities, axis=1)
+    def select_candidates_with_details(
+        self,
+        visual_features: np.ndarray,
+        probabilities: np.ndarray,
+        labeled_counts: Union[np.ndarray, List[int], Dict[int, int]],
+        query_budget: int = 16,
+        apply_calibration: bool = True,
+        reference_prior: Optional[np.ndarray] = None,
+        top_n: Optional[int] = None,
+    ) -> Tuple[List[int], List[Dict[str, Any]]]:
+        n_samples = visual_features.shape[0]
+        if n_samples == 0 or query_budget <= 0:
+            return [], []
+
+        pred_classes = np.argmax(probabilities, axis=1) if probabilities.size > 0 else np.zeros(n_samples, dtype=int)
         rho = self.compute_residual_priority(
             predicted_classes=pred_classes,
             labeled_counts=labeled_counts,
-            n_classes=probabilities.shape[1],
+            n_classes=probabilities.shape[1] if probabilities.size > 0 else None,
         )
 
-        # 5: Weighted K-Means on visual features
+        if n_samples <= query_budget:
+            logger.info(f"Candidate pool size ({n_samples}) <= budget ({query_budget}). Selecting all.")
+            h_hat, h_nn, u = self.compute_calibrated_uncertainty(
+                probabilities=probabilities,
+                visual_features=visual_features,
+                apply_calibration=apply_calibration,
+                reference_prior=reference_prior,
+                top_n=top_n,
+            )
+            details = []
+            for i in range(n_samples):
+                details.append({
+                    "sample_index": i,
+                    "uncertainty_utility": float(u[i]) if len(u) > i else 0.0,
+                    "calibrated_entropy": float(h_hat[i]) if len(h_hat) > i else 0.0,
+                    "neighbor_uncertainty": float(h_nn[i]) if len(h_nn) > i else 0.0,
+                    "residual_priority": float(rho[i]) if len(rho) > i else 1.0,
+                    "predicted_class_id": int(pred_classes[i]),
+                    "cluster_id": i,
+                    "distance_to_centroid": 0.0,
+                    "tri_rank_res": 1,
+                    "tri_rank_info": 1,
+                    "tri_rank_rep": 1,
+                    "aggregate_rank": 3,
+                    "is_selected": True,
+                    "selection_status": "ALL_SELECTED",
+                })
+            return list(range(n_samples)), details
+
+        h_hat, h_nn, u = self.compute_calibrated_uncertainty(
+            probabilities=probabilities,
+            visual_features=visual_features,
+            apply_calibration=apply_calibration,
+            reference_prior=reference_prior,
+            top_n=top_n,
+        )
+
         labels, centers = self.weighted_kmeans_clustering(
             visual_features=visual_features,
             sample_weights=u,
             n_clusters=query_budget,
         )
 
-        # 6: Tri-Rank Aggregation per cluster
         selected_indices: List[int] = []
+        all_member_ranks: Dict[int, Dict[str, Any]] = {}
+        winner_set = set()
+
         for m in range(len(centers)):
             cluster_members = np.where(labels == m)[0]
             if len(cluster_members) == 0:
                 continue
 
-            best_idx = self.tri_rank_aggregation(
+            best_idx, m_ranks = self.tri_rank_aggregation(
                 cluster_indices=cluster_members,
                 residual_priority=rho,
                 uncertainty=u,
                 visual_features=visual_features,
                 centroid=centers[m],
+                return_details=True,
             )
             selected_indices.append(best_idx)
+            winner_set.add(best_idx)
+            all_member_ranks.update(m_ranks)
 
-        # If any clusters were empty and selected_indices < query_budget, backfill from highest U
+        backfill_set = set()
         if len(selected_indices) < query_budget:
             remaining_mask = np.ones(n_samples, dtype=bool)
             remaining_mask[selected_indices] = False
@@ -436,10 +413,41 @@ class R3CECSelector:
             if len(remaining_indices) > 0:
                 deficit = query_budget - len(selected_indices)
                 ranked_remaining = remaining_indices[np.argsort(-u[remaining_indices])][:deficit]
-                selected_indices.extend(ranked_remaining.tolist())
+                for b_idx in ranked_remaining:
+                    selected_indices.append(int(b_idx))
+                    backfill_set.add(int(b_idx))
+
+        details = []
+        for i in range(n_samples):
+            m_rank = all_member_ranks.get(i, {})
+            c_id = int(labels[i]) if len(labels) > i else 0
+            is_sel = i in winner_set or i in backfill_set
+            if i in winner_set:
+                sel_status = "CLUSTER_WINNER"
+            elif i in backfill_set:
+                sel_status = "BACKFILL"
+            else:
+                sel_status = "NOT_SELECTED"
+
+            details.append({
+                "sample_index": i,
+                "uncertainty_utility": float(u[i]),
+                "calibrated_entropy": float(h_hat[i]),
+                "neighbor_uncertainty": float(h_nn[i]),
+                "residual_priority": float(rho[i]),
+                "predicted_class_id": int(pred_classes[i]),
+                "cluster_id": c_id,
+                "distance_to_centroid": float(m_rank.get("distance_to_centroid", 0.0)),
+                "tri_rank_res": m_rank.get("tri_rank_res"),
+                "tri_rank_info": m_rank.get("tri_rank_info"),
+                "tri_rank_rep": m_rank.get("tri_rank_rep"),
+                "aggregate_rank": m_rank.get("aggregate_rank"),
+                "is_selected": is_sel,
+                "selection_status": sel_status,
+            })
 
         logger.info(
             f"R3-CEC selected {len(selected_indices)} queries from {n_samples} candidate pool "
-            f"(target budget={query_budget})."
+            f"(target budget={query_budget}, winners={len(winner_set)}, backfill={len(backfill_set)})."
         )
-        return selected_indices
+        return selected_indices, details

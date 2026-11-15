@@ -45,7 +45,7 @@ class FDALSelector:
         self._anchors: Optional[torch.Tensor] = None
 
     def get_anchor_cache_path(self, model_id: int = 2) -> Path:
-        base_dir = Path(__file__).resolve().parent.parent.parent.parent
+        base_dir = Path(__file__).resolve().parent.parent.parent.parent.parent
         cache_dir = base_dir / "working" / "embeddings"
         cache_dir.mkdir(parents=True, exist_ok=True)
         return cache_dir / f"visual_anchors_{model_id}.pt"

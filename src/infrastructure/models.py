@@ -168,10 +168,37 @@ class ActiveLearningRecord(Base):
     flip_count = Column(Integer, nullable=False, default=0)
     flip_classes = Column(JSONB, nullable=False, default=list)
     calibrated_entropy = Column(Float, nullable=False, default=0.0)
+    batch_run_id = Column(String(100), nullable=True)
+    cluster_id = Column(Integer, nullable=True)
+    tri_rank_res = Column(Integer, nullable=True)
+    tri_rank_info = Column(Integer, nullable=True)
+    tri_rank_rep = Column(Integer, nullable=True)
+    aggregate_rank = Column(Integer, nullable=True)
+    is_selected = Column(Boolean, nullable=False, default=False)
     created_at = Column(
         DateTime(timezone=True),
         nullable=False,
         default=lambda: datetime.now(timezone.utc),
+    )
+
+
+class ActiveLearningContextualPrior(Base):
+    __tablename__ = "active_learning_contextual_priors"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    run_id = Column(String(100), nullable=False)
+    model_id = Column(Integer, ForeignKey("model_versions.id", ondelete="CASCADE"), nullable=True)
+    pool_size = Column(Integer, nullable=False)
+    top_n_per_class = Column(Integer, nullable=False, default=5)
+    p0_prior = Column(JSONB, nullable=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+    __table_args__ = (
+        Index("idx_al_priors_run_model", "run_id", "model_id", unique=True),
     )
 
 

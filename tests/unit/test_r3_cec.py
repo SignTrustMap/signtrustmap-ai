@@ -231,3 +231,62 @@ def test_ai_cec_21_tri_rank_selection_and_batch_pipeline(r3_cec: R3CECSelector, 
         assert 0 <= idx < n_samples
     logger.info(f"AI-CEC-21 verified: End-to-end R3-CEC selected 16 unique queries from {n_samples} vectors.")
 
+
+def test_ai_cec_22_top_n_prior_calculation(r3_cec: R3CECSelector):
+    probs = np.array([
+        [0.9, 0.1],
+        [0.8, 0.2],
+        [0.3, 0.7],
+        [0.1, 0.9],
+        [0.2, 0.8],
+    ])
+    _, p0 = r3_cec.calibrate_probabilities(probs, top_n=2)
+    expected_p0_c0 = (0.9 + 0.8) / 2.0
+    expected_p0_c1 = (0.9 + 0.8) / 2.0
+    np.testing.assert_allclose(p0, np.array([expected_p0_c0, expected_p0_c1]), atol=1e-5)
+
+
+def test_ai_cec_23_frozen_reference_prior(r3_cec: R3CECSelector):
+    probs = np.array([
+        [0.8, 0.2],
+        [0.4, 0.6],
+    ])
+    frozen_p0 = np.array([0.5, 0.5])
+    calibrated, p0 = r3_cec.calibrate_probabilities(probs, reference_prior=frozen_p0)
+    np.testing.assert_allclose(p0, frozen_p0, atol=1e-6)
+    expected_calib = probs / np.sum(probs, axis=1, keepdims=True)
+    np.testing.assert_allclose(calibrated, expected_calib, atol=1e-5)
+
+
+def test_ai_cec_24_select_candidates_with_details_metadata(r3_cec: R3CECSelector):
+    n_samples = 25
+    rng = np.random.RandomState(42)
+    feats = rng.randn(n_samples, 16)
+    probs = rng.dirichlet(np.ones(5), size=n_samples)
+    labeled_counts = {c: rng.randint(0, 10) for c in range(5)}
+
+    selected, details = r3_cec.select_candidates_with_details(
+        visual_features=feats,
+        probabilities=probs,
+        labeled_counts=labeled_counts,
+        query_budget=5,
+    )
+
+    assert len(selected) == 5
+    assert len(details) == n_samples
+    selected_set = set(selected)
+    for d in details:
+        assert "sample_index" in d
+        assert "uncertainty_utility" in d
+        assert "calibrated_entropy" in d
+        assert "residual_priority" in d
+        assert "cluster_id" in d
+        assert "tri_rank_res" in d
+        assert "tri_rank_info" in d
+        assert "tri_rank_rep" in d
+        assert "aggregate_rank" in d
+        assert "is_selected" in d
+        assert "selection_status" in d
+        assert d["is_selected"] == (d["sample_index"] in selected_set)
+
+

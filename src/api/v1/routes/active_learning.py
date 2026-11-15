@@ -15,6 +15,7 @@ from src.core.active_learning.detection_scorer import al_engine
 from src.core.active_learning.store import al_store
 from src.core.active_learning.feedback_processor import feedback_processor
 from src.core.active_learning.retrain import trigger_retrain
+from src.core.active_learning.hybrid_selector import hybrid_al_selector
 from src.api.schemas.active_learning import (
     SingleDetectionScoreRequest,
     SingleDetectionScoreResponse,
@@ -30,6 +31,10 @@ from src.api.schemas.active_learning import (
     ActiveLearningRecordBatchRequest,
     ActiveLearningSelectionItem,
     ActiveLearningSelectionBatchRequest,
+    ScoreCandidatesRequest,
+    ScoreCandidatesResponse,
+    SelectCandidatesRequest,
+    SelectCandidatesResponse,
 )
 
 router = APIRouter(tags=["Active Learning"])
@@ -252,3 +257,51 @@ async def list_active_learning_records(
         )
         for r in records
     ]
+
+
+@router.post("/score-candidates", response_model=ScoreCandidatesResponse)
+async def score_candidates_endpoint(request: ScoreCandidatesRequest):
+    logger.info(f"Received candidate scoring request for {len(request.candidate_ids)} candidates (strategy={request.strategy})")
+    try:
+        scored = hybrid_al_selector.score_candidates_by_ids(
+            candidate_ids=request.candidate_ids,
+            strategy=request.strategy or "fdal",
+            save_db=bool(request.save_db),
+        )
+        return {
+            "total": len(scored),
+            "strategy": request.strategy or "fdal",
+            "candidates": scored,
+        }
+    except Exception as e:
+        logger.error(f"Scoring candidates failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Scoring candidates failed: {str(e)}",
+        )
+
+
+@router.post("/select-candidates", response_model=SelectCandidatesResponse)
+async def select_candidates_endpoint(request: SelectCandidatesRequest):
+    logger.info(
+        f"Received candidate selection request for run_id='{request.run_id}', "
+        f"pool={len(request.candidate_ids)}, budget={request.query_budget}"
+    )
+    try:
+        res = hybrid_al_selector.select_candidates(
+            run_id=request.run_id,
+            candidate_ids=request.candidate_ids,
+            query_budget=request.query_budget,
+            labeled_counts=request.labeled_counts,
+            shortlist_factor=request.shortlist_factor or 3,
+            top_n_prior=request.top_n_prior or 5,
+            save_db=bool(request.save_db),
+        )
+        return res
+    except Exception as e:
+        logger.error(f"Selecting candidates failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Selecting candidates failed: {str(e)}",
+        )
+

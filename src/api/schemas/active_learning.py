@@ -148,4 +148,62 @@ class ActiveLearningRecordBatchRequest(BaseModel):
 
 
 ActiveLearningSelectionItem = ActiveLearningRecordItem
+
+
+class ScoreCandidatesRequest(BaseModel):
+    candidate_ids: List[str] = Field(..., min_length=1, description="List of candidate UUID strings to score")
+    strategy: Optional[str] = Field("fdal", description="Scoring strategy to apply (fdal or r3_cec)")
+    save_db: Optional[bool] = Field(True, description="Whether to persist scores to active_learning_records")
+
+
+class ScoredCandidateItem(BaseModel):
+    candidate_id: str
+    class_id: int
+    acquisition_score: float
+    flip_count: int = 0
+    flip_classes: List[int] = Field(default_factory=list)
+    calibrated_entropy: float = 0.0
+    detect_confidence: Optional[float] = None
+    classify_confidence: Optional[float] = None
+    box_xyxy: Optional[List[float]] = None
+
+
+class ScoreCandidatesResponse(BaseModel):
+    total: int
+    strategy: str
+    candidates: List[ScoredCandidateItem]
+
+
+class SelectCandidatesRequest(BaseModel):
+    run_id: str = Field(..., description="Unique ID of the daily AL selection run")
+    candidate_ids: List[str] = Field(..., description="Pool of candidate UUID strings to select from")
+    query_budget: int = Field(..., ge=0, description="Target query budget K (number of samples to select)")
+    labeled_counts: Optional[dict] = Field(None, description="Dictionary mapping class ID (str or int) to verified sample count")
+    shortlist_factor: Optional[int] = Field(3, ge=1, description="Shortlist multiplier factor M = min(shortlist_factor * K, N)")
+    top_n_prior: Optional[int] = Field(5, ge=1, description="Top-N samples per class for CEC contextual prior calculation")
+    save_db: Optional[bool] = Field(True, description="Whether to persist selection metadata into DB")
+
+
+class SelectedCandidateItem(BaseModel):
+    candidate_id: str
+    predicted_class_id: int
+    acquisition_score: float
+    uncertainty_utility: float
+    residual_priority: float
+    cluster_id: int
+    tri_rank_res: Optional[int] = None
+    tri_rank_info: Optional[int] = None
+    tri_rank_rep: Optional[int] = None
+    aggregate_rank: Optional[int] = None
+    selection_status: str
+
+
+class SelectCandidatesResponse(BaseModel):
+    run_id: str
+    total_pool_size: int
+    shortlist_size: int
+    query_budget: int
+    selected_count: int
+    selected_candidates: List[SelectedCandidateItem]
+
 ActiveLearningSelectionBatchRequest = ActiveLearningRecordBatchRequest
