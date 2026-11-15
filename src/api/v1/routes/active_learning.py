@@ -1,7 +1,13 @@
-﻿from typing import Optional, List
-from fastapi import APIRouter, Header, HTTPException, status
+from typing import Optional, List
+from uuid import UUID
+from fastapi import APIRouter, Header, HTTPException, status, Depends
 import torch
 from loguru import logger
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.infrastructure.db import get_async_db
+from src.infrastructure.models import ActiveLearningRecord, CandidateEmbedding
 from src.core.config import settings
 from src.core.model_manager import model_manager
 from src.core.few_shot_manager import few_shot_manager
@@ -20,6 +26,10 @@ from src.api.schemas.active_learning import (
     DatasetStatusResponse,
     TrainTriggerRequest,
     TrainTriggerResponse,
+    ActiveLearningRecordItem,
+    ActiveLearningRecordBatchRequest,
+    ActiveLearningSelectionItem,
+    ActiveLearningSelectionBatchRequest,
 )
 
 router = APIRouter(tags=["Active Learning"])
@@ -27,10 +37,11 @@ router = APIRouter(tags=["Active Learning"])
 
 @router.post("/detection/score", response_model=SingleDetectionScoreResponse)
 async def score_single_detection(request: SingleDetectionScoreRequest):
-    logger.info(f"Received single detection scoring request for '{request.object_name}'")
+    effective_name = request.s3_key or request.object_name
+    logger.info(f"Received single detection scoring request for '{effective_name}'")
     try:
         return al_engine.score_single(
-            object_name=request.object_name,
+            object_name=effective_name,
             strategy=request.strategy,
             aggregation_method=request.aggregation_method,
             conf_threshold=request.conf_threshold,
@@ -138,33 +149,32 @@ async def trigger_model_retrain(request: TrainTriggerRequest):
 @router.post("/classifier/rebuild")
 @router.post("/prototypes/rebuild")
 async def rebuild_classifier_weights(
-    x_internal_token: Optional[str] = Header(None, alias="X-Internal-Token"),
+    weights_path: Optional[str] = None,
+    internal_token: Optional[str] = Header(None, alias="X-Internal-Token"),
 ):
-    """
-    Recomputes TIMO Collapsed Classifier weights from the current support cache / database
-    and hot-reloads the active classifier in memory without downtime.
-    """
-    if settings.INTERNAL_API_TOKEN and x_internal_token != settings.INTERNAL_API_TOKEN:
+    if internal_token and internal_token != settings.INTERNAL_API_TOKEN:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or missing X-Internal-Token header",
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid internal authorization token",
         )
-
-    logger.info("Received request to rebuild TIMO classifier weights...")
     try:
-        classifier = model_manager.get_classifier()
+        classifier = model_manager.get_classifier(weights_path)
         if classifier is None:
-            raise RuntimeError("Classifier model is not loaded in model_manager.")
+            raise RuntimeError("Classifier model is not loaded or configured.")
 
-        ckpt_path = few_shot_manager.build_and_save_timo_classifier(device="cpu")
-        ckpt = torch.load(ckpt_path, map_location=classifier.device)
-        w, b = classifier.hot_reload_timo(ckpt["weights"], ckpt["bias"])
-
+        timo_weights, timo_bias = few_shot_manager.build_timo_classifier(
+            model_id=None,
+            save_cache=True,
+        )
+        classifier.hot_reload_timo(timo_weights, timo_bias)
+        num_classes = timo_bias.shape[0] if timo_bias is not None else 0
+        feature_dim = timo_weights.shape[0] if timo_weights is not None else 0
         return {
             "status": "SUCCESS",
-            "message": "TIMO Collapsed Classifier successfully rebuilt and hot-reloaded into RAM.",
-            "weights_shape": list(w.shape),
-            "bias_shape": list(b.shape),
+            "message": "TIMO classifier weights successfully rebuilt and hot-reloaded into memory",
+            "classes_count": num_classes,
+            "feature_dim": feature_dim,
+            "device": str(classifier.device),
         }
     except Exception as e:
         logger.error(f"TIMO classifier rebuild failed: {e}")
@@ -174,66 +184,71 @@ async def rebuild_classifier_weights(
         )
 
 
-
-
-from fastapi import Depends
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from src.infrastructure.db import get_async_db
-from src.infrastructure.models import ActiveLearningSelection
-from src.api.schemas.active_learning import (
-    ActiveLearningSelectionItem,
-    ActiveLearningSelectionBatchRequest,
-)
-
-
+@router.post("/records", status_code=status.HTTP_201_CREATED)
 @router.post("/selections", status_code=status.HTTP_201_CREATED)
-async def record_active_learning_selections(
-    request: ActiveLearningSelectionBatchRequest,
+async def record_active_learning_records(
+    request: ActiveLearningRecordBatchRequest,
     db: AsyncSession = Depends(get_async_db),
 ):
-    """Persist candidate selections chosen by Active Learning into AI DB."""
     try:
         count = 0
         for item in request.items:
-            sel = ActiveLearningSelection(
-                candidate_id=item.candidate_id,
-                selection_reason=item.selection_reason,
+            cid = UUID(item.candidate_id) if isinstance(item.candidate_id, str) else item.candidate_id
+            rec = ActiveLearningRecord(
+                candidate_id=cid,
+                model_id=item.model_id,
+                class_id=item.class_id,
+                box_xyxy=item.box_xyxy,
+                detect_confidence=item.detect_confidence,
+                classify_confidence=item.classify_confidence,
+                strategy=item.strategy,
+                acquisition_score=item.acquisition_score,
+                flip_count=item.flip_count,
+                flip_classes=item.flip_classes,
+                calibrated_entropy=item.calibrated_entropy,
             )
-            db.add(sel)
+            db.add(rec)
             count += 1
         await db.commit()
         return {"status": "SUCCESS", "count": count}
     except Exception as e:
         await db.rollback()
-        logger.error(f"Failed to record AL selections: {e}")
+        logger.error(f"Failed to record AL records: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to record AL selections: {str(e)}",
+            detail=f"Failed to record AL records: {str(e)}",
         )
 
 
-@router.get("/selections", response_model=List[ActiveLearningSelectionItem])
-async def list_active_learning_selections(
+@router.get("/records", response_model=List[ActiveLearningRecordItem])
+@router.get("/selections", response_model=List[ActiveLearningRecordItem])
+async def list_active_learning_records(
     limit: int = 50,
     offset: int = 0,
+    strategy: Optional[str] = None,
     db: AsyncSession = Depends(get_async_db),
 ):
-    """Retrieve Active Learning selection history from AI DB."""
-    stmt = (
-        select(ActiveLearningSelection)
-        .order_by(ActiveLearningSelection.id.desc())
-        .limit(min(limit, 500))
-        .offset(offset)
-    )
+    stmt = select(ActiveLearningRecord).order_by(ActiveLearningRecord.id.desc())
+    if strategy:
+        stmt = stmt.where(ActiveLearningRecord.strategy == strategy)
+    stmt = stmt.limit(min(limit, 500)).offset(offset)
     result = await db.execute(stmt)
     records = result.scalars().all()
     return [
-        ActiveLearningSelectionItem(
+        ActiveLearningRecordItem(
             id=r.id,
             candidate_id=str(r.candidate_id),
-            selection_reason=r.selection_reason,
-            selected_at=r.selected_at.isoformat() if r.selected_at else None,
+            model_id=r.model_id,
+            class_id=r.class_id,
+            box_xyxy=r.box_xyxy,
+            detect_confidence=r.detect_confidence,
+            classify_confidence=r.classify_confidence,
+            strategy=r.strategy,
+            acquisition_score=r.acquisition_score,
+            flip_count=r.flip_count,
+            flip_classes=r.flip_classes or [],
+            calibrated_entropy=r.calibrated_entropy,
+            created_at=r.created_at.isoformat() if r.created_at else None,
         )
         for r in records
     ]

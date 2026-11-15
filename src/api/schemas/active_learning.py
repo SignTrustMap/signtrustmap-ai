@@ -8,10 +8,18 @@ class DetectionBoxScore(BaseModel):
     confidence: float = Field(..., description="Detector confidence score (0.0 - 1.0)", examples=[0.615])
     score: float = Field(..., description="Active learning score for this box", examples=[0.385])
     box_xyxy: List[float] = Field(..., description="Bounding box coordinates [xmin, ymin, xmax, ymax]", examples=[[120.5, 200.1, 180.2, 260.8]])
+    candidate_id: Optional[str] = None
+    acquisition_score: Optional[float] = None
+    flip_count: Optional[int] = None
+    flip_classes: Optional[List[int]] = None
+    calibrated_entropy: Optional[float] = None
+    detect_confidence: Optional[float] = None
+    classify_confidence: Optional[float] = None
 
 
 class SingleDetectionScoreRequest(BaseModel):
-    object_name: str = Field(..., description="Object name / path of the image in MinIO bucket", examples=["vid-task-111/sign_1.jpg"])
+    object_name: Optional[str] = Field(None, description="Object name / path of the image in MinIO bucket", examples=["vid-task-111/sign_1.jpg"])
+    s3_key: Optional[str] = Field(None, description="s3_key alias of object_name")
     strategy: Optional[str] = Field(None, description="Active learning scoring strategy", examples=["least_confidence"])
     aggregation_method: Optional[str] = Field("avg", description="Box score aggregation method (avg, max, min, sum)", examples=["avg"])
     conf_threshold: Optional[float] = Field(None, description="Detection confidence threshold", ge=0.01, le=1.0, examples=[0.6])
@@ -19,7 +27,9 @@ class SingleDetectionScoreRequest(BaseModel):
 
 class SingleDetectionScoreResponse(BaseModel):
     object_name: str = Field(..., description="Object name in MinIO storage", examples=["vid-task-111/sign_1.jpg"])
+    s3_key: Optional[str] = None
     score: float = Field(..., description="Aggregated active learning score for the image", examples=[0.385])
+    acquisition_score: Optional[float] = None
     total_detections: int = Field(..., description="Total bounding boxes detected", examples=[1])
     detections: List[DetectionBoxScore] = Field(..., description="List of detected boxes with scores")
     strategy: str = Field(..., description="Strategy used for scoring", examples=["least_confidence"])
@@ -117,12 +127,25 @@ class TrainTriggerResponse(BaseModel):
     dry_run: bool = Field(False, description="Whether this was a dry run")
     message: Optional[str] = Field(None, description="Optional message details")
     error: Optional[str] = Field(None, description="Error message if failed")
-class ActiveLearningSelectionItem(BaseModel):
+class ActiveLearningRecordItem(BaseModel):
     id: Optional[int] = None
     candidate_id: str
-    selection_reason: str
-    selected_at: Optional[str] = None
+    model_id: Optional[int] = None
+    class_id: Optional[int] = None
+    box_xyxy: Optional[List[float]] = None
+    detect_confidence: Optional[float] = None
+    classify_confidence: Optional[float] = None
+    strategy: str = "fdal"
+    acquisition_score: float
+    flip_count: int = 0
+    flip_classes: List[int] = Field(default_factory=list)
+    calibrated_entropy: float = 0.0
+    created_at: Optional[str] = None
 
 
-class ActiveLearningSelectionBatchRequest(BaseModel):
-    items: List[ActiveLearningSelectionItem] = Field(..., min_length=1)
+class ActiveLearningRecordBatchRequest(BaseModel):
+    items: List[ActiveLearningRecordItem] = Field(..., min_length=1)
+
+
+ActiveLearningSelectionItem = ActiveLearningRecordItem
+ActiveLearningSelectionBatchRequest = ActiveLearningRecordBatchRequest

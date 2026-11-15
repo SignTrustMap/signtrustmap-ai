@@ -10,6 +10,7 @@ from src.core.config import settings
 from src.core.config_manager import config_manager
 from src.core.detector import SignDetector
 from src.core.classifier import SignClassifier
+from src.infrastructure.minio_client import minio_client
 
 
 class ModelManager:
@@ -52,10 +53,23 @@ class ModelManager:
     def load_detector(self, weights_name: str) -> str:
         base_dir = Path(__file__).resolve().parent.parent.parent
         clean_name = os.path.basename(weights_name)
-        weights_path = base_dir / "weights" / "detectors" / clean_name
+        working_path = base_dir / "working" / "models" / "detectors" / clean_name
+        legacy_path = base_dir / "weights" / "detectors" / clean_name
+        weights_path = working_path if working_path.exists() else legacy_path
 
         if not weights_path.exists():
-            raise FileNotFoundError(f"Detector weights '{clean_name}' not found in weights/detectors/ directory.")
+            working_path.parent.mkdir(parents=True, exist_ok=True)
+            minio_key = f"models/detectors/{clean_name}"
+            logger.info(f"Downloading detector '{clean_name}' from MinIO ({minio_key})...")
+            success = minio_client.download_file(
+                settings.MINIO_BUCKET,
+                minio_key,
+                str(working_path),
+            )
+            if success and working_path.exists():
+                weights_path = working_path
+            else:
+                raise FileNotFoundError(f"Detector weights '{clean_name}' not found in working/models/detectors/ or on MinIO.")
 
         if self._detector is not None:
             self.unload_detector()
@@ -71,10 +85,23 @@ class ModelManager:
     def load_classifier(self, weights_name: str) -> str:
         base_dir = Path(__file__).resolve().parent.parent.parent
         clean_name = os.path.basename(weights_name)
-        weights_path = base_dir / "weights" / "classifiers" / clean_name
+        working_path = base_dir / "working" / "models" / "classifiers" / clean_name
+        legacy_path = base_dir / "weights" / "classifiers" / clean_name
+        weights_path = working_path if working_path.exists() else legacy_path
 
         if not weights_path.exists():
-            raise FileNotFoundError(f"Classifier weights '{clean_name}' not found in weights/classifiers/ directory.")
+            working_path.parent.mkdir(parents=True, exist_ok=True)
+            minio_key = f"models/classifiers/{clean_name}"
+            logger.info(f"Downloading classifier '{clean_name}' from MinIO ({minio_key})...")
+            success = minio_client.download_file(
+                settings.MINIO_BUCKET,
+                minio_key,
+                str(working_path),
+            )
+            if success and working_path.exists():
+                weights_path = working_path
+            else:
+                raise FileNotFoundError(f"Classifier weights '{clean_name}' not found in working/models/classifiers/ or on MinIO.")
 
         if self._classifier is not None:
             self.unload_classifier()

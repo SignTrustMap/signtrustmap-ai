@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from loguru import logger
 from scipy.spatial.distance import cdist
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from src.core.config_manager import ConfigManager
@@ -276,6 +276,19 @@ class FewShotSupportManager:
 
         return w_timo, b_timo
 
+    def get_support_shots_metadata(self, model_id: int = 2) -> Dict[str, Any]:
+        try:
+            with Session(sync_engine) as session:
+                res = session.query(
+                    func.count(SupportShot.id),
+                    func.coalesce(func.max(SupportShot.id), 0),
+                ).filter(SupportShot.model_id == model_id).first()
+                count, max_id = (res[0], res[1]) if res else (0, 0)
+                return {"sample_count": int(count), "max_id": int(max_id), "model_id": model_id}
+        except Exception as e:
+            logger.warning(f"Could not load support shots metadata: {e}")
+            return {"sample_count": 0, "max_id": 0, "model_id": model_id}
+
     def build_and_save_timo_classifier(
         self,
         support_cache_file: Optional[str] = None,
@@ -286,7 +299,7 @@ class FewShotSupportManager:
     ) -> Path:
         base_dir = Path(__file__).resolve().parent.parent.parent
         dev = torch.device(device if device is not None else ("cuda:0" if torch.cuda.is_available() else "cpu"))
-        out_path = Path(output_path) if output_path else (base_dir / "weights" / "classifiers" / "timo.pt")
+        out_path = Path(output_path) if output_path else (base_dir / "working" / "embeddings" / "timo.pt")
 
         keys, labels, text_emb = None, None, None
 
@@ -305,6 +318,20 @@ class FewShotSupportManager:
                     keys = torch.tensor(np.array(embs), device=dev)
                     labels = torch.tensor(c_indices, dtype=torch.long, device=dev)
 
+                    supp_cache_path = base_dir / "working" / "embeddings" / "support_cache_mobileclip_s2.pt"
+                    supp_cache_path.parent.mkdir(parents=True, exist_ok=True)
+                    try:
+                        torch.save({
+                            "keys": keys.cpu(),
+                            "labels": labels.cpu(),
+                            "meta": {
+                                "model_id": model_id,
+                                "sample_count": int(keys.shape[0]),
+                            }
+                        }, supp_cache_path)
+                    except Exception as e:
+                        logger.warning(f"Failed to persist support cache snapshot: {e}")
+
                 stmt_text = (
                     select(ModelClass.class_index, TextEmbedding.embedding)
                     .join(ModelClass, TextEmbedding.class_id == ModelClass.id)
@@ -319,8 +346,20 @@ class FewShotSupportManager:
             logger.warning(f"Could not load vectors from database: {e}")
 
         if keys is None or text_emb is None:
-            supp_path = Path(support_cache_file) if support_cache_file else (base_dir / "outputs" / "evaluation" / "tip_cache.pt")
-            text_path = Path(text_embeddings_file) if text_embeddings_file else (base_dir / "weights" / "embeddings" / "text_embeddings_mobileclip_s2.pt")
+            if support_cache_file:
+                supp_path = Path(support_cache_file)
+            else:
+                working_supp = base_dir / "working" / "embeddings" / "support_cache_mobileclip_s2.pt"
+                eval_supp = base_dir / "outputs" / "evaluation" / "tip_cache.pt"
+                supp_path = working_supp if working_supp.exists() else eval_supp
+
+            if text_embeddings_file:
+                text_path = Path(text_embeddings_file)
+            else:
+                working_text = base_dir / "working" / "embeddings" / "text_embeddings_mobileclip_s2.pt"
+                weights_text = base_dir / "weights" / "embeddings" / "text_embeddings_mobileclip_s2.pt"
+                text_path = working_text if working_text.exists() else weights_text
+
             if not supp_path.exists():
                 raise FileNotFoundError(f"Support cache file not found at: {supp_path}")
             if not text_path.exists():
@@ -339,7 +378,9 @@ class FewShotSupportManager:
         )
 
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        torch.save({"weights": w_timo.cpu(), "bias": b_timo.cpu()}, out_path)
+        meta_info = self.get_support_shots_metadata(model_id=model_id)
+        meta_info["num_classes"] = int(w_timo.shape[1])
+        torch.save({"weights": w_timo.cpu(), "bias": b_timo.cpu(), "meta": meta_info}, out_path)
         logger.info(f"TIMO Collapsed Classifier weights saved to {out_path} (weights shape: {list(w_timo.shape)}, bias shape: {list(b_timo.shape)})")
         return out_path
 

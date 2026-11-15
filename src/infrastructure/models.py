@@ -135,16 +135,40 @@ class AiSystemConfig(Base):
     )
 
 
-class ActiveLearningSelection(Base):
-    __tablename__ = "active_learning_selections"
+class CandidateEmbedding(Base):
+    __tablename__ = "candidate_embeddings"
+
+    candidate_id = Column(UUID(as_uuid=True), primary_key=True)
+    s3_key = Column(String(500), nullable=False)
+    model_id = Column(Integer, ForeignKey("model_versions.id", ondelete="SET NULL"), nullable=True)
+    embedding = Column(Vector(512), nullable=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+
+class ActiveLearningRecord(Base):
+    __tablename__ = "active_learning_records"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    candidate_id = Column(UUID(as_uuid=True), nullable=False)
-    selection_reason = Column(
-        Enum("UNCERTAIN", "HIGH_CONFIDENCE", name="al_selection_reason", create_type=False),
+    candidate_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("candidate_embeddings.candidate_id", ondelete="CASCADE"),
         nullable=False,
     )
-    selected_at = Column(
+    model_id = Column(Integer, ForeignKey("model_versions.id", ondelete="SET NULL"), nullable=True)
+    class_id = Column(Integer, ForeignKey("model_classes.id", ondelete="SET NULL"), nullable=True)
+    box_xyxy = Column(JSONB, nullable=True)
+    detect_confidence = Column(Float, nullable=True)
+    classify_confidence = Column(Float, nullable=True)
+    strategy = Column(String(50), nullable=False)
+    acquisition_score = Column(Float, nullable=False)
+    flip_count = Column(Integer, nullable=False, default=0)
+    flip_classes = Column(JSONB, nullable=False, default=list)
+    calibrated_entropy = Column(Float, nullable=False, default=0.0)
+    created_at = Column(
         DateTime(timezone=True),
         nullable=False,
         default=lambda: datetime.now(timezone.utc),

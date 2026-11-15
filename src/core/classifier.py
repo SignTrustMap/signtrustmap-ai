@@ -204,33 +204,53 @@ class SignClassifier:
 
     def _get_embedding_cache_path(self) -> Path:
         base_dir = Path(__file__).resolve().parent.parent.parent
-        cache_dir = base_dir / "weights" / "embeddings"
+        cache_dir = base_dir / "working" / "embeddings"
         cache_dir.mkdir(parents=True, exist_ok=True)
         stem = Path(self.weights_path).stem.replace("/", "-")
         return cache_dir / f"text_embeddings_{stem}.pt"
 
     def _get_timo_cache_path(self) -> Path:
         base_dir = Path(__file__).resolve().parent.parent.parent
-        cache_dir = base_dir / "weights" / "classifiers"
+        cache_dir = base_dir / "working" / "embeddings"
         cache_dir.mkdir(parents=True, exist_ok=True)
         return cache_dir / "timo.pt"
 
+    def _is_timo_cache_valid(self, cache_path: Path) -> bool:
+        if not cache_path.exists():
+            return False
+        try:
+            ckpt = torch.load(cache_path, map_location="cpu")
+            if not (isinstance(ckpt, dict) and "weights" in ckpt and "bias" in ckpt):
+                return False
+            w = ckpt["weights"]
+            if w.shape[1] != len(self._class_ids):
+                return False
+            meta = ckpt.get("meta")
+            if not meta:
+                return False
+            db_meta = few_shot_manager.get_support_shots_metadata(model_id=2)
+            if db_meta["sample_count"] > 0:
+                if meta.get("sample_count") != db_meta["sample_count"] or meta.get("max_id") != db_meta["max_id"]:
+                    logger.info("TIMO cache metadata differs from database. Invalidation triggered.")
+                    return False
+            return True
+        except Exception as e:
+            logger.warning(f"Failed verifying TIMO cache validity: {e}")
+            return False
+
     def _load_or_build_timo_classifier(self) -> Tuple[torch.Tensor, torch.Tensor]:
         cache_path = self._get_timo_cache_path()
-        if cache_path.exists():
+        if self._is_timo_cache_valid(cache_path):
             try:
-                logger.info(f"Loading TIMO classifier weights from {cache_path}")
+                logger.info(f"Loading valid TIMO classifier weights from {cache_path}")
                 ckpt = torch.load(cache_path, map_location=self.device)
-                if isinstance(ckpt, dict) and "weights" in ckpt and "bias" in ckpt:
-                    w = ckpt["weights"].to(device=self.device, dtype=torch.float32)
-                    b = ckpt["bias"].to(device=self.device, dtype=torch.float32)
-                    if w.shape[1] == len(self._class_ids) and b.shape[0] == len(self._class_ids):
-                        return w, b
-                    logger.warning(f"Cached TIMO weights shape {w.shape} does not match {len(self._class_ids)} classes.")
+                w = ckpt["weights"].to(device=self.device, dtype=torch.float32)
+                b = ckpt["bias"].to(device=self.device, dtype=torch.float32)
+                return w, b
             except Exception as e:
                 logger.warning(f"Failed to load TIMO classifier weights from {cache_path}: {e}")
 
-        logger.info("Building TIMO classifier from support cache...")
+        logger.info("Building TIMO classifier from database support...")
         try:
             built_path = few_shot_manager.build_and_save_timo_classifier(
                 output_path=str(cache_path),
@@ -244,6 +264,9 @@ class SignClassifier:
             w_fallback = 250.0 * t_norm.t().to(device=self.device, dtype=torch.float32)
             b_fallback = torch.zeros(len(self._class_ids), device=self.device, dtype=torch.float32)
             return w_fallback, b_fallback
+
+    def get_timo_parameters(self) -> Tuple[torch.Tensor, torch.Tensor]:
+        return self.timo_weights, self.timo_bias
 
     def hot_reload_timo(self, timo_weights: torch.Tensor, timo_bias: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         cache_path = self._get_timo_cache_path()
@@ -396,12 +419,23 @@ class SignClassifier:
                     logger.debug(f"Loaded {len(rows)} text embeddings from database")
                     embs = [np.array(r[1], dtype=np.float32) for r in rows]
                     text_features = torch.tensor(np.array(embs), dtype=torch.float32, device=self.device)
+                    try:
+                        cache_path = self._get_embedding_cache_path()
+                        torch.save(text_features.cpu(), cache_path)
+                    except Exception as e:
+                        logger.warning(f"Could not persist text embeddings cache: {e}")
                     self._prune_text_encoder()
                     return text_features
         except Exception as e:
             logger.warning(f"Could not load text embeddings from database: {e}")
 
         cache_path = self._get_embedding_cache_path()
+        if not cache_path.exists():
+            base_dir = Path(__file__).resolve().parent.parent.parent
+            stem = Path(self.weights_path).stem.replace("/", "-")
+            legacy_path = base_dir / "weights" / "embeddings" / f"text_embeddings_{stem}.pt"
+            if legacy_path.exists():
+                cache_path = legacy_path
         if cache_path.exists():
             try:
                 logger.debug(f"Loading text embeddings from fallback cache: {cache_path}")
@@ -498,7 +532,7 @@ class SignClassifier:
             "name_vi": meta.get("name_vi"),
         }
 
-    def classify_crop(self, crop: np.ndarray, top_k: int = 5) -> Dict[str, Any]:
+    def classify_crop(self, crop: np.ndarray, top_k: int = 5, return_features: bool = False) -> Dict[str, Any]:
         if crop is None or crop.size == 0:
             empty_item = {
                 "class_id": None,
@@ -508,7 +542,7 @@ class SignClassifier:
                 "standard_code": None,
                 "name_vi": None,
             }
-            return {
+            res = {
                 "top1": empty_item,
                 "top5": [],
                 "all_predictions": [],
@@ -516,6 +550,12 @@ class SignClassifier:
                 "class_name": "unknown",
                 "classify_confidence": 0.0,
             }
+            if return_features:
+                res["visual_embedding"] = None
+                res["logits"] = None
+                res["probabilities"] = None
+                res["predicted_class_id"] = None
+            return res
 
         pil_img = Image.fromarray(cv2.cvtColor(crop, cv2.COLOR_BGR2RGB))
         img_tensor = self.preprocess(pil_img).unsqueeze(0).to(self.device)
@@ -547,7 +587,7 @@ class SignClassifier:
         }
 
         logger.trace(f"Crop classified: {top1['class_name']} ({top1['classify_confidence']:.4f})")
-        return {
+        res = {
             "top1": top1,
             "top5": top5,
             "all_predictions": all_predictions,
@@ -555,12 +595,19 @@ class SignClassifier:
             "class_name": top1["class_name"],
             "classify_confidence": top1["classify_confidence"],
         }
+        if return_features:
+            res["visual_embedding"] = image_features[0].cpu().numpy()
+            res["logits"] = logits[0].cpu().numpy()
+            res["probabilities"] = probabilities[0].cpu().numpy()
+            res["predicted_class_id"] = int(all_indices[0].item())
+        return res
 
     def classify_crops_batch(
         self,
         crops: List[Optional[np.ndarray]],
         batch_size: int = 4,
         top_k: int = 5,
+        return_features: bool = False,
     ) -> List[Dict[str, Any]]:
         if not crops:
             return []
@@ -584,6 +631,12 @@ class SignClassifier:
             }
             for _ in range(len(crops))
         ]
+        if return_features:
+            for item in results:
+                item["visual_embedding"] = None
+                item["logits"] = None
+                item["probabilities"] = None
+                item["predicted_class_id"] = None
 
         valid_indices = [i for i, c in enumerate(crops) if c is not None and c.size > 0]
         if not valid_indices:
@@ -621,7 +674,7 @@ class SignClassifier:
                 ]
                 crop_top5 = crop_all[:k]
                 crop_top1 = crop_top5[0] if crop_top5 else empty_item
-                results[global_idx] = {
+                item_dict = {
                     "top1": crop_top1,
                     "top5": crop_top5,
                     "all_predictions": crop_all,
@@ -629,6 +682,15 @@ class SignClassifier:
                     "class_name": crop_top1["class_name"],
                     "classify_confidence": crop_top1["classify_confidence"],
                 }
+                if return_features:
+                    item_dict["visual_embedding"] = image_features[i].cpu().numpy()
+                    item_dict["logits"] = logits[i].cpu().numpy()
+                    item_dict["probabilities"] = probabilities[i].cpu().numpy()
+                    item_dict["predicted_class_id"] = int(all_indices[i][0].item())
+                results[global_idx] = item_dict
+
+        logger.debug(f"Batch classification complete ({len(valid_indices)} crops).")
+        return results
 
         logger.debug(f"Batch classification complete ({len(valid_indices)} crops).")
         return results

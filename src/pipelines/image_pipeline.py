@@ -28,7 +28,7 @@ def infer_image(
     classification_results = []
     if classifier is not None and detections:
         crops = [classifier.crop_box(image, item["box_xyxy"]) for item in detections]
-        classification_results = classifier.classify_crops_batch(crops)
+        classification_results = classifier.classify_crops_batch(crops, return_features=True)
 
     signs = []
     artifact_dir = tempfile.mkdtemp(prefix=f"stm-{submission_id}-")
@@ -67,7 +67,7 @@ def infer_image(
             seed = f"{submission_id}:img:{index}:{box_values[0]}_{box_values[1]}_{box_values[2]}_{box_values[3]}"
             candidate_id = uuid.uuid5(STM_CANDIDATE_NAMESPACE, seed)
 
-            signs.append({
+            sign_entry = {
                 "candidate_id": str(candidate_id),
                 "track_id": None,
                 "class_id": class_id,
@@ -83,7 +83,12 @@ def infer_image(
                 "sign_crop_key": crop_storage_key,
                 "frame_index": 0,
                 "timestamp_seconds": 0.0,
-            })
+            }
+            if class_result.get("visual_embedding") is not None:
+                sign_entry["visual_embedding"] = class_result["visual_embedding"]
+            if class_result.get("probabilities") is not None:
+                sign_entry["probabilities"] = class_result["probabilities"]
+            signs.append(sign_entry)
     finally:
         shutil.rmtree(artifact_dir, ignore_errors=True)
 

@@ -71,7 +71,7 @@ def infer_video(
             classify_confidence = best["classify_confidence"]
             seed = f"{submission_id}:track:{track_id}"
             candidate_id = uuid.uuid5(STM_CANDIDATE_NAMESPACE, seed)
-            signs.append({
+            sign_entry = {
                 "candidate_id": str(candidate_id),
                 "track_id": track_id,
                 "class_id": best["class_id"],
@@ -87,7 +87,12 @@ def infer_video(
                 "sign_crop_key": crop_storage_key,
                 "frame_index": candidate["frame_idx"],
                 "timestamp_seconds": candidate["timestamp_seconds"],
-            })
+            }
+            if best.get("visual_embedding") is not None:
+                sign_entry["visual_embedding"] = best["visual_embedding"]
+            if best.get("probabilities") is not None:
+                sign_entry["probabilities"] = best["probabilities"]
+            signs.append(sign_entry)
     finally:
         shutil.rmtree(artifact_dir, ignore_errors=True)
 
@@ -132,6 +137,7 @@ def _best_candidate(candidates, video_path, artifact_dir, track_id, classifier):
         if classifier is not None:
             result = classifier.classify_crop(
                 classifier.crop_box(frame, candidate["box_xyxy"]),
+                return_features=True,
             )
             top1 = result.get("top1")
             top5 = result.get("top5", [])
@@ -155,6 +161,8 @@ def _best_candidate(candidates, video_path, artifact_dir, track_id, classifier):
                 "frame": frame,
                 "frame_path": frame_path,
                 "score": score,
+                "visual_embedding": result.get("visual_embedding") if classifier is not None else None,
+                "probabilities": result.get("probabilities") if classifier is not None else None,
             }
     return best
 
