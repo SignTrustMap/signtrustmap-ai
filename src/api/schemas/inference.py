@@ -1,4 +1,5 @@
 from typing import List, Literal, Optional
+from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -30,6 +31,7 @@ class SignTopCandidate(BaseModel):
 
 
 class SubmissionSignResult(BaseModel):
+    candidate_id: Optional[UUID] = None
     track_id: Optional[int]
     class_id: int
     class_name: str

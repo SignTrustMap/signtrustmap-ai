@@ -1,9 +1,11 @@
 import os
 import shutil
 import tempfile
+import uuid
 
 import cv2
 
+from src.core.config import STM_CANDIDATE_NAMESPACE
 from src.infrastructure.minio_client import minio_client
 from src.pipelines.frame_extractor import extract_video_frame
 
@@ -67,7 +69,10 @@ def infer_video(
 
             candidate = best["candidate"]
             classify_confidence = best["classify_confidence"]
+            seed = f"{submission_id}:track:{track_id}"
+            candidate_id = uuid.uuid5(STM_CANDIDATE_NAMESPACE, seed)
             signs.append({
+                "candidate_id": str(candidate_id),
                 "track_id": track_id,
                 "class_id": best["class_id"],
                 "class_name": best["class_name"],

@@ -1,9 +1,11 @@
 import os
 import shutil
 import tempfile
+import uuid
 
 import cv2
 
+from src.core.config import STM_CANDIDATE_NAMESPACE
 from src.infrastructure.minio_client import minio_client
 
 
@@ -61,7 +63,12 @@ def infer_image(
             if not uploaded or not crop_storage_key:
                 raise RuntimeError(f"Could not upload crop for detection {index}")
 
+            box_values = [round(float(v), 1) for v in detection["box_xyxy"][:4]]
+            seed = f"{submission_id}:img:{index}:{box_values[0]}_{box_values[1]}_{box_values[2]}_{box_values[3]}"
+            candidate_id = uuid.uuid5(STM_CANDIDATE_NAMESPACE, seed)
+
             signs.append({
+                "candidate_id": str(candidate_id),
                 "track_id": None,
                 "class_id": class_id,
                 "class_name": class_name,

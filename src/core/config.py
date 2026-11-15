@@ -1,5 +1,9 @@
 from typing import Optional
+from uuid import UUID
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+STM_CANDIDATE_NAMESPACE = UUID("a3bb189e-8bf9-3888-9912-ace4e6543002")
 
 
 class Settings(BaseSettings):
