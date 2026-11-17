@@ -430,7 +430,6 @@ class FewShotSupportManager:
 
             cand_stmt = (
                 select(CandidateEmbedding.candidate_id, CandidateEmbedding.embedding)
-                .where(CandidateEmbedding.model_id == base_model_id)
                 .order_by(CandidateEmbedding.created_at.asc())
             )
             cand_rows = session.execute(cand_stmt).fetchall()

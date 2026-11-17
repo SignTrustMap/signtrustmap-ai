@@ -33,11 +33,11 @@ def test_training_data_class_distribution():
 
 
 def test_training_data_class_distribution_diff():
-    resp = requests.get(f"{BASE_URL}/training-data/class-distribution/diff", timeout=10)
+    resp = requests.get(f"{BASE_URL}/training-data/class-distribution/diff?compare_with_version_id=2", timeout=10)
     assert resp.status_code == 200, resp.text
     data = resp.json()
     assert data["status"] == "SUCCESS"
-    assert data["compared_with_version_id"] >= 2
+    assert data["compared_with_version_id"] == 2
     assert len(data["added_classes"]) >= 1
     added_codes = [c["sign_code"] for c in data["added_classes"]]
     assert "I.407b" in added_codes
@@ -107,6 +107,10 @@ def test_classifier_multi_version_mlops_lifecycle():
     assert deploy_v4_data["deployed_version_id"] == v4_id
     assert deploy_v4_data["is_active"] is True
 
+    diff_v4_resp = requests.get(f"{BASE_URL}/training-data/class-distribution/diff", timeout=10)
+    assert diff_v4_resp.status_code == 200, diff_v4_resp.text
+    assert len(diff_v4_resp.json()["changed_classes"]) == 0
+
     rollback_resp = requests.post(f"{BASE_URL}/classifier/rollback", timeout=15)
     assert rollback_resp.status_code == 200, rollback_resp.text
     rollback_data = rollback_resp.json()
@@ -114,9 +118,23 @@ def test_classifier_multi_version_mlops_lifecycle():
     assert rollback_data["rolled_back_from"] == v4_id
     assert rollback_data["active_version_id"] == v3_id
 
+    diff_v3_resp = requests.get(f"{BASE_URL}/training-data/class-distribution/diff", timeout=10)
+    assert diff_v3_resp.status_code == 200, diff_v3_resp.text
+    assert len(diff_v3_resp.json()["changed_classes"]) > 0
+
+    diff_v3_v4_resp = requests.get(f"{BASE_URL}/training-data/class-distribution/diff?compare_with_version_id={v3_id}&target_version_id={v4_id}", timeout=10)
+    assert diff_v3_v4_resp.status_code == 200, diff_v3_v4_resp.text
+    v3_v4_data = diff_v3_v4_resp.json()
+    assert v3_v4_data["target_version_tag"] == "classifier-v2.2"
+    assert len(v3_v4_data["changed_classes"]) > 0
+
     switch_v2_resp = requests.post(f"{BASE_URL}/classifier/switch/2", timeout=15)
     assert switch_v2_resp.status_code == 200, switch_v2_resp.text
     assert switch_v2_resp.json()["switched_to_version_id"] == 2
+
+    diff_v2_resp = requests.get(f"{BASE_URL}/training-data/class-distribution/diff", timeout=10)
+    assert diff_v2_resp.status_code == 200, diff_v2_resp.text
+    assert len(diff_v2_resp.json()["changed_classes"]) >= 10
 
     switch_v4_resp = requests.post(f"{BASE_URL}/classifier/switch/{v4_id}", timeout=15)
     assert switch_v4_resp.status_code == 200, switch_v4_resp.text

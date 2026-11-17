@@ -204,6 +204,8 @@ class ClassDistributionDiffResponse(BaseModel):
     status: str = "SUCCESS"
     compared_with_version_id: int = Field(..., description="ID of the model version compared against", examples=[2])
     compared_version_tag: str = Field(..., description="Tag of the model version compared against", examples=["mobileclip_s2"])
+    target_version_id: Optional[int] = Field(None, description="ID of target model version compared against (None for current pool)", examples=[6])
+    target_version_tag: Optional[str] = Field("current_pool", description="Tag of target model version or 'current_pool'", examples=["classifier-v2.2"])
     total_classes_in_compared_model: int = Field(..., description="Total classes trained in the comparison reference model", examples=[100])
     added_classes: List[AddedClassDiffItem] = Field(default_factory=list, description="Classes present in verified pool but absent in reference model")
     removed_classes: List[RemovedClassDiffItem] = Field(default_factory=list, description="Classes present in reference model but absent in verified pool")

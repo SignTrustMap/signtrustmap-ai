@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -50,7 +51,7 @@ def _load_verified_cache() -> Dict[str, Any]:
                 return json.load(f)
         except Exception as e:
             logger.warning(f"Failed to read verified cache: {e}")
-    return []
+    return {}
 
 
 @router.get("/status", response_model=TrainingDataStatusResponse)
@@ -66,17 +67,29 @@ async def get_training_data_status(db: AsyncSession = Depends(get_async_db)):
     verified_map = _load_verified_cache()
     total_verified = len(verified_map)
 
-    cand_stmt = select(CandidateEmbedding.candidate_id).where(CandidateEmbedding.model_id == (active_cls.id if active_cls else 2))
-    cand_res = await db.execute(cand_stmt)
-    ai_cand_ids = [str(r[0]) for r in cand_res.fetchall()]
+    active_cls_cutoff = active_cls.created_at if active_cls and active_cls.created_at else None
 
-    matched_count = sum(1 for cid in ai_cand_ids if cid in verified_map)
+    new_verified_crops = 0
     affected_codes = set()
-    for cid in ai_cand_ids:
-        if cid in verified_map:
-            sc = verified_map[cid].get("sign_code")
-            if sc:
-                affected_codes.add(sc)
+
+    for item in verified_map.values():
+        v_at_str = item.get("verified_at") or item.get("created_at")
+        if not v_at_str:
+            if active_cls_cutoff is None:
+                new_verified_crops += 1
+                sc = item.get("sign_code")
+                if sc:
+                    affected_codes.add(sc)
+            continue
+        try:
+            v_at = datetime.fromisoformat(v_at_str.replace("Z", "+00:00"))
+            if active_cls_cutoff is None or v_at > active_cls_cutoff:
+                new_verified_crops += 1
+                sc = item.get("sign_code")
+                if sc:
+                    affected_codes.add(sc)
+        except Exception:
+            continue
 
     cfg_cls_thresh = int(config_manager.get("active_learning.min_samples_classifier", 100))
     cfg_det_thresh = int(config_manager.get("active_learning.min_samples_detector", 50))
@@ -101,11 +114,11 @@ async def get_training_data_status(db: AsyncSession = Depends(get_async_db)):
     cls_status = ClassifierPoolStatus(
         active_version_id=active_cls.id if active_cls else 2,
         active_version_tag=active_cls.version_tag if active_cls else "mobileclip_s2",
-        total_verified_crops_in_ai_db=matched_count,
-        new_verified_crops_since_active_model=matched_count,
+        total_verified_crops_in_ai_db=total_verified,
+        new_verified_crops_since_active_model=new_verified_crops,
         affected_classes_count=len(affected_codes),
         min_samples_threshold=cfg_cls_thresh,
-        is_eligible_for_rebuild=matched_count >= cfg_cls_thresh,
+        is_eligible_for_rebuild=new_verified_crops >= cfg_cls_thresh,
         current_hyperparams=current_cls_hyperparams,
     )
 
@@ -113,7 +126,7 @@ async def get_training_data_status(db: AsyncSession = Depends(get_async_db)):
         active_version_id=active_det.id if active_det else 1,
         active_version_tag=active_det.version_tag if active_det else "yolo26n_vtsdb_mtsd_dfg",
         data_source="backend_survey_submissions",
-        distinct_full_frames_count=len(ai_cand_ids),
+        distinct_full_frames_count=total_verified,
         total_bounding_box_annotations=total_verified,
         min_samples_threshold=cfg_det_thresh,
         is_eligible_for_retrain=total_verified >= cfg_det_thresh,
@@ -172,49 +185,45 @@ async def get_class_distribution():
 
 @router.get("/class-distribution/diff", response_model=ClassDistributionDiffResponse)
 async def get_class_distribution_diff(
-    compare_with_version_id: Optional[int] = Query(None, description="Model version ID to compare against"),
+    compare_with_version_id: Optional[int] = Query(None, description="Model version ID to compare against (base model, defaults to active)"),
+    target_version_id: Optional[int] = Query(None, description="Target model version ID to compare against (defaults to current pool)"),
     db: AsyncSession = Depends(get_async_db),
 ):
-    target_id = compare_with_version_id
-    if target_id is None:
+    base_id = compare_with_version_id
+    if base_id is None:
         stmt = select(ModelVersion.id).where(ModelVersion.model_type == "CLASSIFIER", ModelVersion.is_active == True)
         res = await db.execute(stmt)
-        target_id = res.scalar_one_or_none() or 2
+        base_id = res.scalar_one_or_none() or 2
 
-    v_stmt = select(ModelVersion).where(ModelVersion.id == target_id)
-    v_res = await db.execute(v_stmt)
-    target_version = v_res.scalar_one_or_none()
-    if not target_version:
+    base_stmt = select(ModelVersion).where(ModelVersion.id == base_id)
+    base_res = await db.execute(base_stmt)
+    base_version = base_res.scalar_one_or_none()
+    if not base_version:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Model version #{target_id} not found",
+            detail=f"Model version #{base_id} not found",
         )
 
-    class_stmt = select(ModelClass.sign_code, ModelClass.class_name).where(ModelClass.model_id == target_id)
+    target_version = None
+    if target_version_id is not None:
+        t_stmt = select(ModelVersion).where(ModelVersion.id == target_version_id)
+        t_res = await db.execute(t_stmt)
+        target_version = t_res.scalar_one_or_none()
+        if not target_version:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Target model version #{target_version_id} not found",
+            )
+
+    base_cutoff = base_version.created_at
+    target_cutoff = target_version.created_at if target_version else None
+
+    class_stmt = select(ModelClass.sign_code, ModelClass.class_name).where(ModelClass.model_id == base_id)
     class_res = await db.execute(class_stmt)
     model_classes = {r[0]: r[1] for r in class_res.fetchall()}
 
-    supp_stmt = (
-        select(ModelClass.sign_code, func.count(SupportShot.id))
-        .join(ModelClass, SupportShot.class_id == ModelClass.id)
-        .where(SupportShot.model_id == target_id)
-        .group_by(ModelClass.sign_code)
-    )
-    supp_res = await db.execute(supp_stmt)
-    previous_counts = {r[0]: int(r[1]) for r in supp_res.fetchall()}
-
     verified_map = _load_verified_cache()
-    current_counts: Dict[str, int] = {}
     sign_meta: Dict[str, Dict[str, str]] = {}
-    for item in verified_map.values():
-        sc = item.get("sign_code")
-        if sc:
-            current_counts[sc] = current_counts.get(sc, 0) + 1
-            if sc not in sign_meta:
-                sign_meta[sc] = {
-                    "name_vi": item.get("name_vi", ""),
-                    "name_en": item.get("name_en", ""),
-                }
 
     catalog = _load_catalog()
     for item in catalog:
@@ -225,25 +234,60 @@ async def get_class_distribution_diff(
                 "name_en": item.get("nameEn", ""),
             }
 
+    base_counts: Dict[str, int] = {}
+    target_counts: Dict[str, int] = {}
+
+    for item in verified_map.values():
+        sc = item.get("sign_code")
+        if not sc:
+            continue
+        if sc not in sign_meta:
+            sign_meta[sc] = {
+                "name_vi": item.get("name_vi", ""),
+                "name_en": item.get("name_en", ""),
+            }
+
+        v_at_str = item.get("verified_at") or item.get("created_at")
+        v_at = None
+        if v_at_str:
+            try:
+                v_at = datetime.fromisoformat(v_at_str.replace("Z", "+00:00"))
+            except Exception:
+                pass
+
+        if v_at is not None and base_cutoff is not None:
+            if v_at <= base_cutoff:
+                base_counts[sc] = base_counts.get(sc, 0) + 1
+        elif base_cutoff is None:
+            base_counts[sc] = base_counts.get(sc, 0) + 1
+
+        if target_cutoff is not None:
+            if v_at is not None and v_at <= target_cutoff:
+                target_counts[sc] = target_counts.get(sc, 0) + 1
+        else:
+            target_counts[sc] = target_counts.get(sc, 0) + 1
+
     added_classes = []
     removed_classes = []
     changed_classes = []
     unchanged_count = 0
 
-    for sc, curr_cnt in current_counts.items():
+    for sc, curr_cnt in target_counts.items():
         if sc not in model_classes:
-            added_classes.append(
-                AddedClassDiffItem(
-                    sign_code=sc,
-                    name_vi=sign_meta.get(sc, {}).get("name_vi", ""),
-                    name_en=sign_meta.get(sc, {}).get("name_en", ""),
-                    current_verified_count=curr_cnt,
+            prev_cnt = base_counts.get(sc, 0)
+            if curr_cnt > prev_cnt:
+                added_classes.append(
+                    AddedClassDiffItem(
+                        sign_code=sc,
+                        name_vi=sign_meta.get(sc, {}).get("name_vi", ""),
+                        name_en=sign_meta.get(sc, {}).get("name_en", ""),
+                        current_verified_count=curr_cnt - prev_cnt,
+                    )
                 )
-            )
 
     for sc in model_classes:
-        prev_cnt = previous_counts.get(sc, 16)
-        curr_cnt = current_counts.get(sc, 0)
+        prev_cnt = base_counts.get(sc, 0)
+        curr_cnt = target_counts.get(sc, 0)
         meta = sign_meta.get(sc, {})
 
         if curr_cnt == 0 and prev_cnt > 0:
@@ -274,8 +318,10 @@ async def get_class_distribution_diff(
 
     return ClassDistributionDiffResponse(
         status="SUCCESS",
-        compared_with_version_id=target_id,
-        compared_version_tag=target_version.version_tag,
+        compared_with_version_id=base_id,
+        compared_version_tag=base_version.version_tag,
+        target_version_id=target_version.id if target_version else None,
+        target_version_tag=target_version.version_tag if target_version else "current_pool",
         total_classes_in_compared_model=len(model_classes),
         added_classes=added_classes,
         removed_classes=removed_classes,
